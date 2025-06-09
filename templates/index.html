@@ -252,6 +252,7 @@
                                             <th>Equipment Avail.</th>
                                             <th>Planned Cost (₹)</th>
                                             <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                            <th>Parallel Group</th>
                                             <th>Score</th>
                                         </tr>
                                     </thead>
@@ -274,7 +275,18 @@
                                             </td>
                                             <td>₹{{ activity.planned_cost }}</td>
                                             <td style="background:#e3f2fd;">₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
-                                            <td>{{ activity.score }}</td>
+                                            <td>
+                                                {% if activity.is_first_in_parallel %}
+                                                    <span class="badge bg-success">First in Group</span>
+                                                {% else %}
+                                                    <span class="badge bg-info">Parallel Activity</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold {% if activity.is_first_in_parallel %}text-success{% endif %}">
+                                                    {{ activity.score }}
+                                                </span>
+                                            </td>
                                         </tr>
                                     {% endfor %}
                                     </tbody>

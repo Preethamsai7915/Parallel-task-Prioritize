@@ -26,17 +26,43 @@ def load_activities():
             })
     return activities
 
-def calculate_score(material, equipment, manpower_ratio, cost_score, delay_cost_per_day, max_delay_cost_per_day):
+def get_parallel_activities(activities, current_day):
+    # Group activities by their dependencies
+    dependency_groups = {}
+    for activity in activities:
+        if not activity['dependency_ids']:
+            continue
+        dep_key = ','.join(sorted(activity['dependency_ids']))
+        if dep_key not in dependency_groups:
+            dependency_groups[dep_key] = []
+        dependency_groups[dep_key].append(activity)
+    
+    # Find parallel activities that are ready to start
+    parallel_groups = []
+    for group in dependency_groups.values():
+        ready_activities = [a for a in group if a['start_day'] <= current_day]
+        if len(ready_activities) > 1:
+            parallel_groups.append(ready_activities)
+    
+    return parallel_groups
+
+def calculate_score(material, equipment, manpower_ratio, cost_score, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False):
     material_score = material
     equipment_score = 1 if equipment else 0
     manpower_score = min(manpower_ratio, 1.0)
-    delay_score = 1.0
-    if max_delay_cost_per_day > 0:
-        delay_score = 1 - (delay_cost_per_day / max_delay_cost_per_day)
-        if delay_cost_per_day == max_delay_cost_per_day:
-            delay_score = 1.0
-        elif delay_score < 0:
-            delay_score = 0.0
+    
+    # Only consider delay score if not the first activity in parallel group
+    if is_first_in_parallel:
+        delay_score = 1.0
+    else:
+        delay_score = 1.0
+        if max_delay_cost_per_day > 0:
+            delay_score = 1 - (delay_cost_per_day / max_delay_cost_per_day)
+            if delay_cost_per_day == max_delay_cost_per_day:
+                delay_score = 1.0
+            elif delay_score < 0:
+                delay_score = 0.0
+    
     score = (
         0.30 * material_score +
         0.20 * equipment_score +
@@ -104,17 +130,14 @@ def get_status(activity_id, actual_completion_days, current_day):
     return "Pending"
 
 def build_cpm_mermaid(activities):
-    # Build a Mermaid.js flowchart for CPM with horizontal layout
     nodes = []
     edges = []
     for act in activities:
-        # Create a more detailed node label with status and costs
         label = f"{act['id']}\\n{act['name']}\\nDuration: {act['duration']}d\\nCost: ₹{act['duration'] * (act['material_cost_per_day'] + act['manpower_cost_per_day'] + act['equipment_cost_per_day'])}"
         nodes.append(f'{act["id"]}["{label}"]')
         for dep in act['dependency_ids']:
             edges.append(f'{dep} --> {act["id"]}')
     
-    # Use LR (Left to Right) direction for horizontal layout
     return "flowchart LR\n" + "\n".join(nodes + edges)
 
 def build_daywise_costs(activities, summary, total_duration):
@@ -205,6 +228,7 @@ def index():
             })
 
         ready_activities = get_ready_activities(activities, actual_completion_days, current_day)
+        parallel_groups = get_parallel_activities(ready_activities, current_day)
 
         for activity in ready_activities:
             material_input = float(request.form.get(f"{activity['id']}_material", 1.0))
@@ -235,7 +259,23 @@ def index():
             equipment_input = activity['equipment']
             manpower_ratio = activity['available_manpower'] / activity['planned_manpower'] if activity['planned_manpower'] > 0 else 1.0
             delay_cost_per_day = activity.get('delay_cost_per_day', 0)
-            activity['score'] = calculate_score(material_input, equipment_input, manpower_ratio, 1.0, delay_cost_per_day, max_delay_cost_per_day)
+            
+            # Check if this activity is first in any parallel group
+            is_first_in_parallel = False
+            for group in parallel_groups:
+                if activity in group and activity == group[0]:
+                    is_first_in_parallel = True
+                    break
+            
+            activity['score'] = calculate_score(
+                material_input, 
+                equipment_input, 
+                manpower_ratio, 
+                1.0, 
+                delay_cost_per_day, 
+                max_delay_cost_per_day,
+                is_first_in_parallel
+            )
 
         ready_activities.sort(key=lambda x: x['score'], reverse=True)
         prev_ready_ids = ','.join([a['id'] for a in ready_activities])
@@ -256,12 +296,31 @@ def index():
         actual_completion_days = {}
         current_day = 1
         ready_activities = get_ready_activities(activities, actual_completion_days, current_day)
+        parallel_groups = get_parallel_activities(ready_activities, current_day)
+        
         for activity in ready_activities:
             activity['material'] = 1.0
             activity['equipment'] = True
             activity['available_manpower'] = activity['planned_manpower']
             activity['delay_cost_per_day'] = activity.get('total_delay_cost_per_day', activity['material_cost_per_day'] + activity['manpower_cost_per_day'] + activity['equipment_cost_per_day'])
-            activity['score'] = calculate_score(1.0, True, 1.0, 1.0, activity['delay_cost_per_day'], 1)
+            
+            # Check if this activity is first in any parallel group
+            is_first_in_parallel = False
+            for group in parallel_groups:
+                if activity in group and activity == group[0]:
+                    is_first_in_parallel = True
+                    break
+            
+            activity['score'] = calculate_score(
+                1.0, 
+                True, 
+                1.0, 
+                1.0, 
+                activity['delay_cost_per_day'], 
+                1,
+                is_first_in_parallel
+            )
+            
             per_day_cost = (
                 activity['material_cost_per_day'] +
                 activity['manpower_cost_per_day'] +
