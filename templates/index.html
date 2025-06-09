@@ -83,6 +83,179 @@
         .mermaid {
             font-family: 'Montserrat', Arial, sans-serif;
         }
+        .score-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .score-breakdown {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .parallel-group {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 8px;
+        }
+        .modal-content {
+            border-radius: 12px;
+        }
+        .modal-header {
+            background: #0d6efd;
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+        .modal-title {
+            font-weight: 600;
+        }
+        .score-component {
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .score-weight {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .score-value {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        .sequence-option {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .sequence-option.best {
+            border: 2px solid #198754;
+            background-color: #f8fff9;
+        }
+        .recommendation {
+            background: #e3f2fd;
+            border-left: 4px solid #0d6efd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .constraint-warning {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        .sequence-table {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .sequence-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .sequence-table td, .sequence-table th {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .sequence-badge {
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        .sequence-badge.first {
+            background: #198754;
+            color: white;
+        }
+        .sequence-badge.later {
+            background: #0dcaf0;
+            color: white;
+        }
+        .score-detail-row {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        .score-detail-label {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        .score-detail-value {
+            color: #198754;
+        }
+        .parallel-activities {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+        }
+        .parallel-activity-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #0d6efd;
+        }
+        .sequence-analysis {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .sequence-analysis h6 {
+            color: #0d6efd;
+            margin-bottom: 10px;
+        }
+        .sequence-analysis-table {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .sequence-analysis-table th {
+            background: #e3f2fd;
+            font-weight: 600;
+        }
+        .sequence-analysis-table td, .sequence-analysis-table th {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .sequence-analysis-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .sequence-analysis-table .best-sequence {
+            background-color: #e8f5e9;
+        }
+        .sequence-analysis-table .best-sequence td {
+            font-weight: 600;
+        }
+        .sequence-analysis-table .delay-cost {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .sequence-analysis-table .score {
+            color: #198754;
+            font-weight: 600;
+        }
+        .sequence-analysis-table .position {
+            width: 80px;
+            text-align: center;
+        }
+        .sequence-analysis-table .activity {
+            min-width: 200px;
+        }
+        .sequence-analysis-table .cost {
+            width: 120px;
+            text-align: right;
+        }
+        .sequence-analysis-table .score {
+            width: 100px;
+            text-align: right;
+        }
+        .sequence-analysis-table .status {
+            width: 100px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -241,6 +414,12 @@
                     <div class="col-12">
                         <div class="card-table">
                             <h4>Available Activities for Day {{ current_day }}</h4>
+                            {% if parallel_groups %}
+                            <div class="recommendation">
+                                <h5>📊 Parallel Activity Analysis</h5>
+                                <p>We've analyzed all possible sequences for parallel activities. The recommended sequence is shown below, optimized for minimum total delay cost.</p>
+                            </div>
+                            {% endif %}
                             <div class="table-responsive">
                                 <table class="table table-bordered table-striped align-middle">
                                     <thead>
@@ -252,8 +431,9 @@
                                             <th>Equipment Avail.</th>
                                             <th>Planned Cost (₹)</th>
                                             <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
-                                            <th>Parallel Group</th>
-                                            <th>Score</th>
+                                            <th>Sequence Position</th>
+                                            <th>Total Score</th>
+                                            <th>Score Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -262,30 +442,42 @@
                                             <td>{{ activity.name }}</td>
                                             <td>{{ activity.planned_manpower }}</td>
                                             <td>
-                                                <input type="number" class="form-control" name="{{ activity.id }}_manpower" value="{{ activity.available_manpower }}" min="0" max="1000" required>
+                                                <input type="number" class="form-control" name="manpower_{{ activity.id }}" 
+                                                    value="{{ activity.available_manpower }}" min="0" max="1000" required>
+                                                {% if activity.available_manpower < activity.planned_manpower %}
+                                                <div class="constraint-warning">
+                                                    ⚠️ Manpower shortage: {{ activity.planned_manpower - activity.available_manpower }} workers needed
+                                                </div>
+                                                {% endif %}
                                             </td>
                                             <td>
-                                                <input type="number" step="0.01" class="form-control" name="{{ activity.id }}_material" value="{{ activity.material }}" min="0" max="1" required>
+                                                <input type="number" step="0.01" class="form-control" name="material_{{ activity.id }}" 
+                                                    value="{{ activity.material }}" min="0" max="1" required>
                                             </td>
                                             <td>
-                                                <select class="form-select" name="{{ activity.id }}_equipment">
-                                                    <option value="yes" {% if activity.equipment %}selected{% endif %}>Yes</option>
-                                                    <option value="no" {% if not activity.equipment %}selected{% endif %}>No</option>
+                                                <select class="form-select" name="equipment_{{ activity.id }}">
+                                                    <option value="true" {% if activity.equipment %}selected{% endif %}>Yes</option>
+                                                    <option value="false" {% if not activity.equipment %}selected{% endif %}>No</option>
                                                 </select>
                                             </td>
                                             <td>₹{{ activity.planned_cost }}</td>
                                             <td style="background:#e3f2fd;">₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
                                             <td>
                                                 {% if activity.is_first_in_parallel %}
-                                                    <span class="badge bg-success">First in Group</span>
+                                                    <span class="badge bg-success">First in Sequence</span>
                                                 {% else %}
-                                                    <span class="badge bg-info">Parallel Activity</span>
+                                                    <span class="badge bg-info">Later in Sequence</span>
                                                 {% endif %}
                                             </td>
                                             <td>
                                                 <span class="fw-bold {% if activity.is_first_in_parallel %}text-success{% endif %}">
-                                                    {{ activity.score }}
+                                                    {{ activity.total_score }}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
+                                                    View Details
+                                                </button>
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -299,6 +491,124 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Score Detail Modals -->
+            {% for activity in activities %}
+            <div class="modal fade" id="scoreModal{{ activity.id }}" tabindex="-1" aria-labelledby="scoreModalLabel{{ activity.id }}" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="scoreModalLabel{{ activity.id }}">Score Details for {{ activity.name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="score-breakdown">
+                                <h6>Score Components:</h6>
+                                <div class="score-detail-row">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <span class="score-detail-label">Material Score:</span>
+                                            <span class="score-detail-value">{{ activity.material_score }}</span>
+                                            <div class="score-weight">(Weight: {{ activity.weights.material }}%)</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <span class="score-detail-label">Equipment Score:</span>
+                                            <span class="score-detail-value">{{ activity.equipment_score }}</span>
+                                            <div class="score-weight">(Weight: {{ activity.weights.equipment }}%)</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <span class="score-detail-label">Manpower Score:</span>
+                                            <span class="score-detail-value">{{ activity.manpower_score }}</span>
+                                            <div class="score-weight">(Weight: {{ activity.weights.manpower }}%)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="score-detail-row">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <span class="score-detail-label">Delay Score:</span>
+                                            <span class="score-detail-value">{{ activity.delay_score }}</span>
+                                            <div class="score-weight">(Weight: {{ activity.weights.delay }}%)</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <span class="score-detail-label">Total Score:</span>
+                                            <span class="score-detail-value fw-bold">{{ activity.total_score }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if activity.parallel_group %}
+                            <div class="sequence-analysis">
+                                <h6>Parallel Activity Analysis:</h6>
+                                <p class="text-muted">All possible sequences for parallel activities, optimized for minimum total delay cost.</p>
+                                
+                                {% for sequence in activity.sequence_options %}
+                                <div class="sequence-option {% if sequence.is_best %}best{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0">Sequence Option {{ loop.index }}</h6>
+                                        {% if sequence.is_best %}
+                                        <span class="badge bg-success">Best Option</span>
+                                        {% endif %}
+                                    </div>
+                                    <table class="sequence-analysis-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="position">Position</th>
+                                                <th class="activity">Activity</th>
+                                                <th class="cost">Delay Cost/Day</th>
+                                                <th class="score">Total Score</th>
+                                                <th class="status">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for act in sequence.activities %}
+                                            <tr {% if sequence.is_best %}class="best-sequence"{% endif %}>
+                                                <td class="text-center">{{ loop.index }}</td>
+                                                <td>{{ act.name }}</td>
+                                                <td class="delay-cost">₹{{ act.delay_cost }}</td>
+                                                <td class="score">{{ act.score.total_score }}</td>
+                                                <td class="text-center">
+                                                    {% if loop.index == 1 %}
+                                                    <span class="sequence-badge first">First</span>
+                                                    {% else %}
+                                                    <span class="sequence-badge later">Later</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                    <div class="mt-2">
+                                        <strong>Total Delay Cost:</strong> 
+                                        <span class="delay-cost">₹{{ sequence.total_delay_cost }}</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            {% if activity.constraints %}
+                            <div class="mt-4">
+                                <h6>Constraints & Recommendations:</h6>
+                                <ul class="list-group">
+                                    {% for constraint in activity.constraints %}
+                                    <li class="list-group-item {% if constraint.is_critical %}list-group-item-danger{% endif %}">
+                                        {{ constraint.message }}
+                                        {% if constraint.recommendation %}
+                                        <div class="text-muted mt-1">{{ constraint.recommendation }}</div>
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
             {% if updated %}
             <div class="card-table">
                 <h4>Prioritized Activities (Highest Priority First)</h4>
@@ -308,8 +618,10 @@
                             <tr>
                                 <th>Rank</th>
                                 <th>Activity</th>
-                                <th>Score</th>
+                                <th>Total Score</th>
                                 <th>Planned Cost (₹)</th>
+                                <th>Delay Cost/Day (₹)</th>
+                                <th>Score Details</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -317,8 +629,14 @@
                             <tr {% if loop.index0 == 0 %}class="highlight"{% endif %}>
                                 <td>{{ loop.index }}</td>
                                 <td>{{ activity.name }}</td>
-                                <td>{{ activity.score }}</td>
+                                <td>{{ activity.total_score }}</td>
                                 <td>₹{{ activity.planned_cost }}</td>
+                                <td>₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
+                                        View Details
+                                    </button>
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -425,6 +743,7 @@
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // Sidebar navigation
     document.querySelectorAll('#sidebar-nav .nav-link').forEach(function(link) {
