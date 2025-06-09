@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Construction Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        window.mermaid = mermaid;
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: {
+                curve: 'basis',
+                padding: 20
+            }
+        });
+    </script>
+    <style>
+        body {
+            background: url('https://asbl.in/wp-content/uploads/2022/09/ASBL-Spectra-1.jpg') no-repeat center center fixed;
+            background-size: cover;
+            font-family: 'Montserrat', Arial, sans-serif;
+        }
+        .dashboard-bg {
+            background: rgba(20, 20, 30, 0.90);
+            border-radius: 18px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.25);
+            padding: 32px 24px 24px 24px;
+            margin: 32px auto;
+            max-width: 1400px;
+        }
+        h2, h4, h5 { color: #fff; letter-spacing: 1px; }
+        .summary-table th, .summary-table td { font-size: 1.1rem; }
+        .status-completed { color: #00e676; font-weight: bold; }
+        .status-pending { color: #ff5252; font-weight: bold; }
+        .status-inprogress { color: #ffd600; font-weight: bold; }
+        .card-table {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+            margin-bottom: 18px;
+            padding: 18px;
+        }
+        .table thead th {
+            background: #0d6efd;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+        .highlight { background: #d1ffd1 !important; }
+        .form-label, label, .fs-5 { color: #fff; }
+        .btn-primary, .btn-success { font-size: 1.1rem; font-weight: 600; }
+        .table td, .table th { vertical-align: middle; }
+        @media (max-width: 1200px) {
+            .dashboard-bg { padding: 16px 4px; }
+        }
+        @media (max-width: 900px) {
+            .dashboard-bg { padding: 4px 0; }
+            .card-table { padding: 8px; }
+        }
+        #sidebar {
+            min-width: 250px;
+            height: 100vh;
+            background: linear-gradient(135deg, #0d47a1 0%, #42a5f5 100%);
+            box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+        }
+        #sidebar h3 {
+            font-family: 'Montserrat', Arial, sans-serif;
+        }
+        #sidebar .nav-link.active, #sidebar .nav-link:hover {
+            background: #1976d2 !important;
+            color: #fff !important;
+        }
+        .sidebar-section { display: none; }
+        .sidebar-section.active { display: block; }
+        #cpm-mermaid {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+        }
+        .mermaid {
+            font-family: 'Montserrat', Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+<div class="d-flex">
+    <nav id="sidebar" class="bg-gradient-primary flex-shrink-0 p-3">
+        <h3 class="text-white mb-4">🏗️ Project Menu</h3>
+        <ul class="nav nav-pills flex-column mb-auto" id="sidebar-nav">
+            <li class="nav-item mb-2">
+                <a href="#" class="nav-link text-white active" data-section="dashboard" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    Project Overview
+                </a>
+            </li>
+            <li class="nav-item mb-2">
+                <a href="#" class="nav-link text-white" data-section="cpm" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    CPM Schedule
+                </a>
+            </li>
+            <li class="nav-item mb-2">
+                <a href="#" class="nav-link text-white" data-section="cost-analysis" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    Cost Analysis
+                </a>
+            </li>
+            <li class="nav-item mb-2">
+                <a href="#" class="nav-link text-white" data-section="settings" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    Settings
+                </a>
+            </li>
+        </ul>
+        <hr class="text-white">
+        <div class="text-white-50">Powered by Construction AI</div>
+    </nav>
+    <div class="dashboard-bg flex-grow-1">
+        <!-- DASHBOARD SECTION -->
+        <div id="dashboard-section" class="sidebar-section active">
+            <h2 class="mb-4 text-center">🏙️ Construction Project Prioritization Dashboard</h2>
+            <form method="post">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="current_day" class="form-label"><b>Project Day:</b></label>
+                        <input type="number" class="form-control" name="current_day" id="current_day" value="{{ current_day }}" min="1" max="{{ total_duration }}" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Go to Day</button>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end justify-content-end">
+                        <span class="fs-5"><b>Total Project Duration:</b> {{ total_duration }} days</span>
+                    </div>
+                </div>
+                <input type="hidden" name="prev_ready" value="{{ prev_ready }}">
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card-table">
+                            <h4>All Activities Overview</h4>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle summary-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Activity</th>
+                                            <th>Duration</th>
+                                            <th>Planned Manpower</th>
+                                            <th>Dependencies</th>
+                                            <th>Status</th>
+                                            <th>Actual Completion Day</th>
+                                            <th>Planned Finish Day</th>
+                                            <th>Delay Days</th>
+                                            <th>Planned Cost (₹)</th>
+                                            <th>Actual Cost (₹)</th>
+                                            <th>Delay Cost (₹)</th>
+                                            <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for activity in summary %}
+                                        <tr>
+                                            <td>{{ activity.id }}</td>
+                                            <td>{{ activity.name }}</td>
+                                            <td>{{ activity.duration }}</td>
+                                            <td>{{ activity.planned_manpower }}</td>
+                                            <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
+                                            <td>
+                                                {% if activity.status == "Completed" %}
+                                                    <span class="status-completed">Completed</span>
+                                                {% elif activity.status == "Completed Today" %}
+                                                    <span class="status-inprogress">Completed Today</span>
+                                                {% else %}
+                                                    <span class="status-pending">Pending</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ activity.actual_completion_day }}</td>
+                                            <td>{{ activity.planned_finish_day }}</td>
+                                            <td>{{ activity.delay_days }}</td>
+                                            <td>₹{{ activity.planned_cost }}</td>
+                                            <td>
+                                                {% if activity.actual_cost > activity.planned_cost %}
+                                                    <span class="text-danger fw-bold">₹{{ activity.actual_cost }}</span>
+                                                {% else %}
+                                                    ₹{{ activity.actual_cost }}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if activity.delay_cost > 0 %}
+                                                    <span class="text-danger fw-bold">₹{{ activity.delay_cost }}</span>
+                                                {% else %}
+                                                    ₹0
+                                                {% endif %}
+                                            </td>
+                                            <td style="background:#e3f2fd;">₹{{ activity.total_delay_cost_per_day if activity.total_delay_cost_per_day else '-' }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card-table">
+                            <h4>Mark Completed Activities</h4>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Complete?</th>
+                                            <th>Activity</th>
+                                            <th>Dependencies</th>
+                                            <th>Actual Completion Day</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for activity in all_activities %}
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" name="complete_{{ activity.id }}"
+                                                    {% if actual_completion_days.get(activity.id, 0) and current_day > actual_completion_days[activity.id] %}checked{% endif %}>
+                                            </td>
+                                            <td>{{ activity.name }}</td>
+                                            <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
+                                            <td>
+                                                {% if actual_completion_days.get(activity.id) %}
+                                                    {{ actual_completion_days[activity.id] }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card-table">
+                            <h4>Available Activities for Day {{ current_day }}</h4>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Activity</th>
+                                            <th>Planned Manpower</th>
+                                            <th>Available Manpower</th>
+                                            <th>Material Avail. (0-1)</th>
+                                            <th>Equipment Avail.</th>
+                                            <th>Planned Cost (₹)</th>
+                                            <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                            <th>Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for activity in activities %}
+                                        <tr>
+                                            <td>{{ activity.name }}</td>
+                                            <td>{{ activity.planned_manpower }}</td>
+                                            <td>
+                                                <input type="number" class="form-control" name="{{ activity.id }}_manpower" value="{{ activity.available_manpower }}" min="0" max="1000" required>
+                                            </td>
+                                            <td>
+                                                <input type="number" step="0.01" class="form-control" name="{{ activity.id }}_material" value="{{ activity.material }}" min="0" max="1" required>
+                                            </td>
+                                            <td>
+                                                <select class="form-select" name="{{ activity.id }}_equipment">
+                                                    <option value="yes" {% if activity.equipment %}selected{% endif %}>Yes</option>
+                                                    <option value="no" {% if not activity.equipment %}selected{% endif %}>No</option>
+                                                </select>
+                                            </td>
+                                            <td>₹{{ activity.planned_cost }}</td>
+                                            <td style="background:#e3f2fd;">₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
+                                            <td>{{ activity.score }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-grid gap-2 mt-3">
+                                <button type="submit" class="btn btn-success btn-lg">Update & Prioritize</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+            {% if updated %}
+            <div class="card-table">
+                <h4>Prioritized Activities (Highest Priority First)</h4>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Activity</th>
+                                <th>Score</th>
+                                <th>Planned Cost (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for activity in activities %}
+                            <tr {% if loop.index0 == 0 %}class="highlight"{% endif %}>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ activity.name }}</td>
+                                <td>{{ activity.score }}</td>
+                                <td>₹{{ activity.planned_cost }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="fs-5"><b>Top Priority Activity:</b> {{ activities[0].name if activities else 'None' }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- CPM SCHEDULE SECTION -->
+        <div id="cpm-section" class="sidebar-section">
+            <h2 class="mb-4 text-center">🗺️ CPM Schedule (Flowchart)</h2>
+            <div class="card-table">
+                <div id="cpm-mermaid" class="text-center">
+                    <pre class="mermaid">{{ cpm_mermaid }}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- COST ANALYSIS SECTION -->
+        <div id="cost-analysis-section" class="sidebar-section">
+            <h2 class="mb-4 text-center">💰 Cost Analysis Dashboard</h2>
+            <div class="row">
+                <div class="col-12">
+                    <div class="card-table">
+                        <h4>Cost Overview</h4>
+                        <div id="cost-overview-chart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card-table">
+                        <h4>Cost Overrun Analysis</h4>
+                        <div id="cost-overrun-chart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card-table">
+                        <h4>Cost Overrun Details</h4>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Activity</th>
+                                        <th>Planned Cost (₹)</th>
+                                        <th>Actual Cost (₹)</th>
+                                        <th>Cost Overrun (₹)</th>
+                                        <th>Overrun %</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for activity in summary %}
+                                    <tr>
+                                        <td>{{ activity.name }}</td>
+                                        <td>₹{{ activity.planned_cost }}</td>
+                                        <td>₹{{ activity.actual_cost }}</td>
+                                        <td>
+                                            {% if activity.actual_cost > activity.planned_cost %}
+                                                <span class="text-danger fw-bold">₹{{ activity.actual_cost - activity.planned_cost }}</span>
+                                            {% else %}
+                                                ₹0
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if activity.actual_cost > activity.planned_cost %}
+                                                <span class="text-danger fw-bold">{{ ((activity.actual_cost - activity.planned_cost) / activity.planned_cost * 100)|round(2) }}%</span>
+                                            {% else %}
+                                                0%
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if activity.status == "Completed" %}
+                                                <span class="status-completed">Completed</span>
+                                            {% elif activity.status == "Completed Today" %}
+                                                <span class="status-inprogress">In Progress</span>
+                                            {% else %}
+                                                <span class="status-pending">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS SECTION -->
+        <div id="settings-section" class="sidebar-section">
+            <h2 class="mb-4 text-center">⚙️ Settings</h2>
+            <div class="card-table">
+                <h4>Project Owner</h4>
+                <p style="font-size:1.2rem;font-weight:bold;color:#1976d2;">{{ owner_name }}</p>
+                <hr>
+                <p>Settings and future options can be configured here.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Sidebar navigation
+    document.querySelectorAll('#sidebar-nav .nav-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('#sidebar-nav .nav-link').forEach(function(l) { l.classList.remove('active'); });
+            link.classList.add('active');
+            var section = link.getAttribute('data-section');
+            document.querySelectorAll('.sidebar-section').forEach(function(sec) { sec.classList.remove('active'); });
+            if (section === 'dashboard') document.getElementById('dashboard-section').classList.add('active');
+            if (section === 'cpm') {
+                document.getElementById('cpm-section').classList.add('active');
+                if (window.mermaid) {
+                    window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                }
+            }
+            if (section === 'cost-analysis') {
+                document.getElementById('cost-analysis-section').classList.add('active');
+                renderCostCharts();
+            }
+            if (section === 'settings') document.getElementById('settings-section').classList.add('active');
+        });
+    });
+
+    // CPM Mermaid rendering
+    try {
+        if (window.mermaid) {
+            window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        }
+    } catch (error) {
+        console.error('Error rendering CPM diagram:', error);
+    }
+
+    // Cost Analysis Charts
+    function renderCostCharts() {
+        // Cost Overview Chart
+        const costOverviewData = [
+            {
+                x: {{ summary|map(attribute='name')|list|tojson }},
+                y: {{ summary|map(attribute='planned_cost')|list|tojson }},
+                name: 'Planned Cost',
+                type: 'bar',
+                marker: {color: '#42a5f5'}
+            },
+            {
+                x: {{ summary|map(attribute='name')|list|tojson }},
+                y: {{ summary|map(attribute='actual_cost')|list|tojson }},
+                name: 'Actual Cost',
+                type: 'bar',
+                marker: {color: '#00e676'}
+            }
+        ];
+
+        const costOverviewLayout = {
+            title: 'Planned vs Actual Cost by Activity',
+            barmode: 'group',
+            xaxis: {title: 'Activities'},
+            yaxis: {title: 'Cost (₹)'},
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {color: '#333'},
+            showlegend: true,
+            legend: {x: 1, xanchor: 'right', y: 1}
+        };
+
+        Plotly.newPlot('cost-overview-chart', costOverviewData, costOverviewLayout);
+
+        // Cost Overrun Chart
+        const costOverrunData = [{
+            x: {{ summary|map(attribute='name')|list|tojson }},
+            y: {{ summary|map(attribute='delay_cost')|list|tojson }},
+            type: 'bar',
+            marker: {
+                color: {{ summary|map(attribute='delay_cost')|list|tojson }}.map(cost => cost > 0 ? '#ff5252' : '#00e676')
+            }
+        }];
+
+        const costOverrunLayout = {
+            title: 'Cost Overrun by Activity',
+            xaxis: {title: 'Activities'},
+            yaxis: {title: 'Cost Overrun (₹)'},
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {color: '#333'}
+        };
+
+        Plotly.newPlot('cost-overrun-chart', costOverrunData, costOverrunLayout);
+    }
+
+    // Initialize cost charts when cost analysis section is active
+    document.querySelector('[data-section="cost-analysis"]').addEventListener('click', function() {
+        renderCostCharts();
+    });
+</script>
+</body>
+</html>

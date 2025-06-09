@@ -1,0 +1,11 @@
+id,name,duration,planned_manpower,dependency_ids,start_day,material_cost_per_day,manpower_cost_per_day,equipment_cost_per_day,total_delay_cost_per_day
+A1,Site Clearance,3,10,,1,1000,2000,1500,4500
+A2,Soil Testing,2,3,A1,1,800,1200,1000,3000
+A3,Excavation,4,30,A1,1,1200,3000,2000,6200
+A4,Foundation Marking,2,5,"A2,A3",1,900,1500,1200,3600
+A5,Foundation Laying,5,20,A4,1,1500,2500,1800,5800
+A6,Column Casting,3,15,A5,1,1100,1800,1300,4200
+A7,Plinth Beam,3,12,A5,1,1000,1700,1200,3900
+A8,Ground Floor Slab,4,25,"A7,A6",1,1400,2800,1900,6100
+A9,Brickwork,5,18,A8,1,900,1600,1100,3600
+A10,Plastering,5,10,A9,1,700,1200,900,2800
