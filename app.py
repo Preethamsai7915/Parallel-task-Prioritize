@@ -169,72 +169,119 @@ def get_parallel_activities(activities, current_day):
         print(f"Error getting parallel activities: {e}")
         return []
 
+def is_activity_critical(activity, critical_paths):
+    """Check if an activity is on any critical path."""
+    try:
+        for path in critical_paths:
+            if any(act['id'] == activity['id'] for act in path):
+                return True
+        return False
+    except Exception as e:
+        print(f"Error checking if activity is critical: {e}")
+        return False
+
 def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False, activity=None):
     """
-    Calculate score with detailed breakdown and improved equipment score calculation
+    Calculate the total score for an activity based on various factors.
+    
+    Scoring weights:
+    - Delay Score: 35%
+    - Equipment Score: 25%
+    - Manpower Score: 15%
+    - Critical Path Score: 15%
+    - Material Score: 10%
+    
+    Critical Path Score:
+    - If activity is on critical path: 15 points
+    - If not on critical path: 0 points
+    - If all parallel activities are on critical path: 15 points for all
     """
     try:
-        # Material score (30% weight)
-        material_score = float(material) * 0.30
-        
-        # Equipment score (20% weight) - New calculation based on equipment type
-        equipment_type = activity.get('equipment_type', 'owned') if activity else 'owned'
-        if equipment_type == 'rented':
-            equipment_score = 0.20  # Full score for rented equipment
-        elif equipment_type == 'owned':
-            # Calculate score based on cost ratio
-            rented_cost = activity.get('rented_equipment_cost_per_day', 0) if activity else 0
-            owned_cost = activity.get('owned_equipment_om_cost_per_day', 0) if activity else 0
-            if rented_cost > 0:
-                cost_ratio = owned_cost / rented_cost
-                equipment_score = 0.20 * cost_ratio  # Proportional score based on cost ratio
+        # Calculate delay score (35%)
+        delay_score = 0
+        if max_delay_cost_per_day > 0:
+            # Normalize delay cost to 0-1 range and multiply by 35
+            delay_score = (1 - (delay_cost_per_day / max_delay_cost_per_day)) * 35
+
+        # Calculate equipment score (25%)
+        equipment_score = 0
+        if activity:
+            if equipment == 'rented':
+                equipment_score = 25  # Full score for rented equipment
+            elif equipment == 'owned':
+                # Calculate score based on relative cost
+                rented_cost = activity.get('rented_equipment_cost_per_day', 0)
+                owned_cost = activity.get('owned_equipment_om_cost_per_day', 0)
+                if rented_cost > 0:
+                    # Score is proportional to owned cost relative to rented cost
+                    equipment_score = (owned_cost / rented_cost) * 25
+                else:
+                    equipment_score = 0
+            elif equipment == 'no_equipment':
+                equipment_score = 0  # Zero score for no equipment
             else:
-                equipment_score = 0.20  # Full score if no rented cost available
-        else:  # no_equipment
-            equipment_score = 0  # Zero score for no equipment
-        
-        # Manpower score (25% weight)
-        manpower_score = float(manpower_ratio) * 0.25
-        
-        # Delay score (25% weight) - Improved calculation
-        if is_first_in_parallel:
-            delay_score = 0.25  # Full score for first activity
-        else:
-            # Calculate relative delay score based on cost ratio
-            cost_ratio = float(delay_cost_per_day) / float(max_delay_cost_per_day) if max_delay_cost_per_day > 0 else 0
-            # Use a softer reduction formula that maintains higher scores
-            delay_score = 0.25 * (1 - (cost_ratio * 0.5))  # Only reduce by half the cost ratio
-        
+                equipment_score = 0  # Default to zero score for any other case
+
+        # Calculate manpower score (15%)
+        manpower_score = manpower_ratio * 15
+
+        # Calculate material score (10%)
+        material_score = material * 10
+
+        # Calculate critical path score (15%)
+        critical_path_score = 0
+        if activity:
+            # Get critical paths from the activity's context
+            critical_paths = activity.get('critical_paths', [])
+            
+            # Check if this activity is on any critical path
+            if is_activity_critical(activity, critical_paths):
+                critical_path_score = 15
+            elif activity.get('parallel_group'):
+                # Check if all activities in parallel group are critical
+                all_critical = True
+                for parallel_activity in activity['parallel_group']:
+                    if not is_activity_critical(parallel_activity, critical_paths):
+                        all_critical = False
+                        break
+                if all_critical:
+                    critical_path_score = 15
+
         # Calculate total score
-        total_score = (material_score + equipment_score + manpower_score + delay_score) * 100
-        
-        # Return detailed breakdown
+        total_score = delay_score + equipment_score + manpower_score + material_score + critical_path_score
+
+        # Return detailed score breakdown
         return {
             'total_score': round(total_score, 2),
-            'material_score': round(material_score * 100, 2),
-            'equipment_score': round(equipment_score * 100, 2),
-            'manpower_score': round(manpower_score * 100, 2),
-            'delay_score': round(delay_score * 100, 2),
+            'delay_score': round(delay_score, 2),
+            'equipment_score': round(equipment_score, 2),
+            'manpower_score': round(manpower_score, 2),
+            'material_score': round(material_score, 2),
+            'critical_path_score': round(critical_path_score, 2),
             'weights': {
-                'material': 30,
-                'equipment': 20,
-                'manpower': 25,
-                'delay': 25
+                'delay': 35,
+                'equipment': 25,
+                'manpower': 15,
+                'critical_path': 15,
+                'material': 10
             }
         }
     except Exception as e:
         print(f"Error calculating score: {e}")
+        # Return default scores in case of error
         return {
-            'total_score': 0,
-            'material_score': 0,
-            'equipment_score': 0,
-            'manpower_score': 0,
-            'delay_score': 0,
+            'total_score': 50.0,
+            'delay_score': 17.5,
+            'equipment_score': 0,  # Changed to 0 for equipment score in error case
+            'manpower_score': 7.5,
+            'material_score': 5.0,
+            'critical_path_score': 7.5,
             'weights': {
-                'material': 30,
-                'equipment': 20,
-                'manpower': 25,
-                'delay': 25
+                'delay': 35,
+                'equipment': 25,
+                'manpower': 15,
+                'critical_path': 15,
+                'material': 10
             }
         }
 
@@ -576,6 +623,9 @@ def index():
             # Get parallel groups
             parallel_groups = get_parallel_activities(ready_activities, current_day)
             
+            # Calculate max delay cost for normalization
+            max_delay_cost = max((a.get('total_delay_cost_per_day', 0) for a in ready_activities), default=1)
+            
             # Update activity scores based on best sequence
             for activity in ready_activities:
                 is_first_in_parallel = activity['id'] == best_sequence[0] if best_sequence else False
@@ -594,7 +644,6 @@ def index():
                     
                 # Get equipment type from form, default to owned
                 activity['equipment_type'] = request.form.get(f"equipment_type_{activity['id']}", 'owned')
-                activity['equipment'] = True  # Equipment is always available, just different cost types
                 
                 # Calculate manpower ratio
                 manpower_ratio = min(1.0, activity['available_manpower'] / activity['planned_manpower']) if activity['planned_manpower'] > 0 else 0
@@ -603,20 +652,22 @@ def index():
                 if not is_first_in_parallel:
                     delay_days = current_day - activity['start_day']
                     if delay_days > 0:
-                        equipment_cost = get_equipment_cost(activity, activity['equipment_type'])
-                        activity['delay_cost_per_day'] = activity['manpower_cost_per_day'] + equipment_cost
+                        activity['delay_cost_per_day'] = activity['total_delay_cost_per_day']
                     else:
                         activity['delay_cost_per_day'] = 0
                 else:
                     activity['delay_cost_per_day'] = 0
                 
+                # Add critical paths to activity context
+                activity['critical_paths'] = critical_paths
+                
                 # Calculate score with detailed breakdown
                 score_details = calculate_score(
                     activity['material'],  # material
-                    activity['equipment'],  # equipment
+                    activity['equipment_type'],  # equipment type
                     manpower_ratio,  # manpower_ratio
                     activity['delay_cost_per_day'],
-                    max((a.get('delay_cost_per_day', 0) for a in ready_activities), default=1),
+                    max_delay_cost,
                     is_first_in_parallel,
                     activity  # Pass the entire activity object
                 )
@@ -628,7 +679,7 @@ def index():
                 activity['parallel_group'] = None
                 for group in parallel_groups:
                     if activity in group:
-                        activity['parallel_group'] = [a['id'] for a in group]
+                        activity['parallel_group'] = [a for a in group]
                         break
                 
                 # Add sequence options with activity details
@@ -660,7 +711,7 @@ def index():
                 activity['delay_cost'] = 0
 
             # Sort activities by score
-            ready_activities.sort(key=lambda x: x['total_score'], reverse=True)
+            ready_activities.sort(key=lambda x: x.get('total_score', 0), reverse=True)
             prev_ready_ids = ','.join([a['id'] for a in ready_activities])
             session['actual_completion_days'] = actual_completion_days
 
@@ -728,7 +779,7 @@ def index():
                 activity['parallel_group'] = None
                 for group in parallel_groups:
                     if activity in group:
-                        activity['parallel_group'] = [a['id'] for a in group]
+                        activity['parallel_group'] = [a for a in group]
                         break
                 
                 # Add sequence options with activity details
@@ -760,7 +811,7 @@ def index():
                 activity['planned_cost'] = activity['duration'] * per_day_cost
                 activity['delay_cost'] = 0
 
-            ready_activities.sort(key=lambda x: x['total_score'], reverse=True)
+            ready_activities.sort(key=lambda x: x.get('total_score', 0), reverse=True)
             prev_ready_ids = ','.join([a['id'] for a in ready_activities])
 
             summary = []
