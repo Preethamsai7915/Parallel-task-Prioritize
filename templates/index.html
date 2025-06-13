@@ -524,12 +524,12 @@
                                     </div>
                                 </div>
                                 <div class="row score-details mb-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <span class="score-detail-label">Material Score:</span>
                                         <span class="score-detail-value">{{ activity.material_score }}</span>
                                         <div class="score-weight">(Weight: {{ activity.weights.material }}%)</div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <span class="score-detail-label">Critical Path Score:</span>
                                         <span class="score-detail-value {% if activity.is_critical %}text-danger fw-bold{% endif %}">
                                             {{ activity.critical_path_score }}
@@ -539,14 +539,10 @@
                                         </span>
                                         <div class="score-weight">(Weight: {{ activity.weights.critical_path }}%)</div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <span class="score-detail-label">Site Overhead Cost/Day:</span>
-                                        <span class="score-detail-value">₹{{ activity.site_overhead_cost_per_day }}</span>
-                                    </div>
                                 </div>
                             </div>
 
-                            <!-- New Delay Cost Calculation Section -->
+                            <!-- Delay Cost Calculation Section -->
                             <div class="delay-cost-breakdown mt-4">
                                 <h6>Delay Cost Calculation:</h6>
                                 <div class="card">
@@ -570,19 +566,8 @@
                                                         ₹{{ activity.manpower_cost_per_day }}/day
                                                     </li>
                                                     <li class="mb-2">
-                                                        <strong>Site Overhead Cost:</strong>
-                                                        ₹15,000/day
-                                                        <div class="small text-muted">
-                                                            - Site Office: ₹5,000/day<br>
-                                                            - Security: ₹2,000/day<br>
-                                                            - Utilities: ₹3,000/day<br>
-                                                            - Supervision: ₹4,000/day<br>
-                                                            - Insurance: ₹1,000/day
-                                                        </div>
-                                                    </li>
-                                                    <li class="mb-2">
                                                         <strong>Total Daily Cost:</strong>
-                                                        ₹{{ activity.manpower_cost_per_day + (activity.rented_equipment_cost_per_day if activity.equipment_type == 'rented' else activity.owned_equipment_om_cost_per_day if activity.equipment_type == 'owned' else 0) + 15000 }}/day
+                                                        ₹{{ activity.manpower_cost_per_day + (activity.rented_equipment_cost_per_day if activity.equipment_type == 'rented' else activity.owned_equipment_om_cost_per_day if activity.equipment_type == 'owned' else 0) }}/day
                                                     </li>
                                                 </ul>
                                             </div>
@@ -598,10 +583,6 @@
                                                         <strong>Critical Path Impact:</strong>
                                                         <span class="text-danger">+20% additional cost</span>
                                                     </li>
-                                                    <li class="mb-2">
-                                                        <strong>Overhead Impact:</strong>
-                                                        <span class="text-danger">+10% additional overhead</span>
-                                                    </li>
                                                     {% endif %}
                                                     <li class="mb-2">
                                                         <strong>Total Delay Cost:</strong>
@@ -613,11 +594,10 @@
                                         <div class="mt-3">
                                             <h6>Calculation Formula:</h6>
                                             <div class="bg-light p-3 rounded">
-                                                <p class="mb-2">Total Delay Cost = (Daily Equipment Cost + Daily Manpower Cost + Daily Overhead Cost) × Delay Days</p>
+                                                <p class="mb-2">Total Delay Cost = (Daily Equipment Cost + Daily Manpower Cost) × Delay Days</p>
                                                 {% if activity.is_critical %}
                                                 <p class="mb-0">Critical Path Impact = Total Delay Cost × 20%</p>
-                                                <p class="mb-0">Overhead Impact = Total Overhead Cost × 10%</p>
-                                                <p class="mb-0">Final Delay Cost = Total Delay Cost + Critical Path Impact + Overhead Impact</p>
+                                                <p class="mb-0">Final Delay Cost = Total Delay Cost + Critical Path Impact</p>
                                                 {% endif %}
                                             </div>
                                         </div>
