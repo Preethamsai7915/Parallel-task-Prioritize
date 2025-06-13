@@ -19,11 +19,12 @@ def load_activities():
                     "planned_manpower": int(row["planned_manpower"]),
                     "dependency_ids": [d.strip() for d in row["dependency_ids"].split(',') if d.strip()],
                     "start_day": int(row["start_day"]),
-                    "material_cost_per_day": int(row["material_cost_per_day"]),
                     "manpower_cost_per_day": int(row["manpower_cost_per_day"]),
-                    "equipment_cost_per_day": int(row["equipment_cost_per_day"]),
+                    "rented_equipment_cost_per_day": int(row["rented_equipment_cost_per_day"]),
+                    "owned_equipment_om_cost_per_day": int(row["owned_equipment_om_cost_per_day"]),
+                    "no_equipment_cost_per_day": int(row["no_equipment_cost_per_day"]),
                     "total_delay_cost_per_day": int(row["total_delay_cost_per_day"]) if "total_delay_cost_per_day" in row and row["total_delay_cost_per_day"] else (
-                        int(row["material_cost_per_day"]) + int(row["manpower_cost_per_day"]) + int(row["equipment_cost_per_day"])
+                        int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
                     )
                 })
     except Exception as e:
@@ -151,16 +152,29 @@ def get_parallel_activities(activities, current_day):
         print(f"Error getting parallel activities: {e}")
         return []
 
-def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False):
+def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False, activity=None):
     """
-    Calculate score with detailed breakdown and improved delay score calculation
+    Calculate score with detailed breakdown and improved equipment score calculation
     """
     try:
         # Material score (30% weight)
         material_score = float(material) * 0.30
         
-        # Equipment score (20% weight)
-        equipment_score = 0.20 if equipment else 0
+        # Equipment score (20% weight) - New calculation based on equipment type
+        equipment_type = activity.get('equipment_type', 'owned') if activity else 'owned'
+        if equipment_type == 'rented':
+            equipment_score = 0.20  # Full score for rented equipment
+        elif equipment_type == 'owned':
+            # Calculate score based on cost ratio
+            rented_cost = activity.get('rented_equipment_cost_per_day', 0) if activity else 0
+            owned_cost = activity.get('owned_equipment_om_cost_per_day', 0) if activity else 0
+            if rented_cost > 0:
+                cost_ratio = owned_cost / rented_cost
+                equipment_score = 0.20 * cost_ratio  # Proportional score based on cost ratio
+            else:
+                equipment_score = 0.20  # Full score if no rented cost available
+        else:  # no_equipment
+            equipment_score = 0  # Zero score for no equipment
         
         # Manpower score (25% weight)
         manpower_score = float(manpower_ratio) * 0.25
@@ -291,7 +305,7 @@ def build_cpm_mermaid(activities):
         nodes = []
         edges = []
         for act in activities:
-            label = f"{act['id']}\\n{act['name']}\\nDuration: {act['duration']}d\\nCost: ₹{act['duration'] * (act['material_cost_per_day'] + act['manpower_cost_per_day'] + act['equipment_cost_per_day'])}"
+            label = f"{act['id']}\\n{act['name']}\\nDuration: {act['duration']}d\\nCost: ₹{act['duration'] * (act['manpower_cost_per_day'] + act['rented_equipment_cost_per_day'])}"
             nodes.append(f'{act["id"]}["{label}"]')
             for dep in act['dependency_ids']:
                 edges.append(f'{dep} --> {act["id"]}')
@@ -300,6 +314,89 @@ def build_cpm_mermaid(activities):
     except Exception as e:
         print(f"Error building CPM mermaid: {e}")
         return "flowchart LR"
+
+def get_critical_path(activities):
+    try:
+        # Calculate earliest start and finish times
+        earliest_start = {act['id']: 0 for act in activities}
+        earliest_finish = {act['id']: 0 for act in activities}
+        
+        # Forward pass
+        for act in activities:
+            if not act['dependency_ids']:
+                earliest_start[act['id']] = act['start_day']
+            else:
+                earliest_start[act['id']] = max(earliest_finish[dep] for dep in act['dependency_ids'])
+            earliest_finish[act['id']] = earliest_start[act['id']] + act['duration']
+        
+        # Calculate latest start and finish times
+        project_duration = max(earliest_finish.values())
+        latest_finish = {act['id']: project_duration for act in activities}
+        latest_start = {act['id']: 0 for act in activities}
+        
+        # Backward pass
+        for act in reversed(activities):
+            if not any(act['id'] in other['dependency_ids'] for other in activities):
+                latest_finish[act['id']] = project_duration
+            else:
+                latest_finish[act['id']] = min(latest_start[dep] for dep in [a['id'] for a in activities if act['id'] in a['dependency_ids']])
+            latest_start[act['id']] = latest_finish[act['id']] - act['duration']
+        
+        # Calculate float/slack for each activity
+        float_times = {}
+        for act in activities:
+            float_times[act['id']] = latest_start[act['id']] - earliest_start[act['id']]
+        
+        # Find all critical paths
+        critical_paths = []
+        
+        def find_paths(current_path, current_activity):
+            if not current_activity:
+                return
+            
+            current_path.append(current_activity)
+            
+            # If this is an end activity (no dependents)
+            if not any(current_activity['id'] in act['dependency_ids'] for act in activities):
+                if len(current_path) > 0:
+                    critical_paths.append(current_path.copy())
+                current_path.pop()
+                return
+            
+            # Find all next activities with zero float
+            next_activities = []
+            for act in activities:
+                if current_activity['id'] in act['dependency_ids'] and float_times[act['id']] == 0:
+                    next_activities.append(act)
+            
+            # Recursively find all paths
+            for next_act in next_activities:
+                find_paths(current_path, next_act)
+            
+            current_path.pop()
+        
+        # Start from activities with no dependencies
+        start_activities = [act for act in activities if not act['dependency_ids']]
+        for start_act in start_activities:
+            if float_times[start_act['id']] == 0:  # Only start from critical activities
+                find_paths([], start_act)
+        
+        # Calculate duration for each path
+        path_durations = []
+        for path in critical_paths:
+            duration = sum(act['duration'] for act in path)
+            path_durations.append(duration)
+        
+        # Verify all paths have the same duration
+        if path_durations and not all(d == path_durations[0] for d in path_durations):
+            print("Warning: Critical paths have different durations")
+        
+        # Return all critical paths and the total duration (sum of critical path activities)
+        total_duration = sum(act['duration'] for act in critical_paths[0]) if critical_paths else 0
+        return critical_paths, total_duration
+    except Exception as e:
+        print(f"Error calculating critical path: {e}")
+        return [], 0
 
 def build_daywise_costs(activities, summary, total_duration):
     try:
@@ -365,9 +462,8 @@ def get_activity_constraints(activity, current_day):
         
         # Check cost constraints
         total_cost = activity['duration'] * (
-            activity['material_cost_per_day'] +
             activity['manpower_cost_per_day'] +
-            activity['equipment_cost_per_day']
+            activity['rented_equipment_cost_per_day']
         )
         if total_cost > 1000000:  # Assuming 1M is budget threshold
             constraints.append({
@@ -380,6 +476,15 @@ def get_activity_constraints(activity, current_day):
     except Exception as e:
         print(f"Error getting activity constraints: {e}")
         return []
+
+def get_equipment_cost(activity, equipment_type):
+    """Helper function to get equipment cost based on type"""
+    if equipment_type == 'rented':
+        return activity['rented_equipment_cost_per_day']
+    elif equipment_type == 'owned':
+        return activity['owned_equipment_om_cost_per_day']
+    else:  # no_equipment
+        return activity['no_equipment_cost_per_day']
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -394,12 +499,16 @@ def index():
         actual_completion_days = session['actual_completion_days']
         current_day = 1
 
+        # Calculate critical path
+        critical_paths, project_duration = get_critical_path(activities)
+
         if request.method == 'POST':
             try:
                 current_day = int(request.form.get('current_day', 1))
             except ValueError:
                 current_day = 1
 
+            # Update activity completion status
             for activity in activities:
                 checkbox = request.form.get(f"complete_{activity['id']}")
                 if checkbox == 'on':
@@ -408,16 +517,20 @@ def index():
                 elif activity['id'] in actual_completion_days and actual_completion_days[activity['id']] >= current_day:
                     del actual_completion_days[activity['id']]
 
+            # Recalculate critical paths after activity updates
+            critical_paths, project_duration = get_critical_path(activities)
+
             summary = []
             for activity in activities:
                 status = get_status(activity['id'], actual_completion_days, current_day)
                 actual_finish = actual_completion_days.get(activity['id'])
                 planned_finish = get_planned_finish_day(activity, activities, actual_completion_days)
-                per_day_cost = (
-                    activity['material_cost_per_day'] +
-                    activity['manpower_cost_per_day'] +
-                    activity['equipment_cost_per_day']
-                )
+                
+                # Get equipment type from form, default to owned
+                equipment_type = request.form.get(f"equipment_type_{activity['id']}", 'owned')
+                equipment_cost = get_equipment_cost(activity, equipment_type)
+                
+                per_day_cost = activity['manpower_cost_per_day'] + equipment_cost
                 planned_cost = activity['duration'] * per_day_cost
                 delay_days = 0
                 actual_cost = planned_cost
@@ -434,7 +547,8 @@ def index():
                     "delay_days": delay_days,
                     "planned_cost": planned_cost,
                     "actual_cost": actual_cost,
-                    "delay_cost": delay_cost
+                    "delay_cost": delay_cost,
+                    "equipment_type": equipment_type
                 })
 
             ready_activities = get_ready_activities(activities, actual_completion_days, current_day)
@@ -461,7 +575,9 @@ def index():
                 except (ValueError, TypeError):
                     activity['material'] = 1.0
                     
-                activity['equipment'] = request.form.get(f"equipment_{activity['id']}", 'true').lower() == 'true'
+                # Get equipment type from form, default to owned
+                activity['equipment_type'] = request.form.get(f"equipment_type_{activity['id']}", 'owned')
+                activity['equipment'] = True  # Equipment is always available, just different cost types
                 
                 # Calculate manpower ratio
                 manpower_ratio = min(1.0, activity['available_manpower'] / activity['planned_manpower']) if activity['planned_manpower'] > 0 else 0
@@ -470,7 +586,8 @@ def index():
                 if not is_first_in_parallel:
                     delay_days = current_day - activity['start_day']
                     if delay_days > 0:
-                        activity['delay_cost_per_day'] = activity['total_delay_cost_per_day']
+                        equipment_cost = get_equipment_cost(activity, activity['equipment_type'])
+                        activity['delay_cost_per_day'] = activity['manpower_cost_per_day'] + equipment_cost
                     else:
                         activity['delay_cost_per_day'] = 0
                 else:
@@ -483,7 +600,8 @@ def index():
                     manpower_ratio,  # manpower_ratio
                     activity['delay_cost_per_day'],
                     max((a.get('delay_cost_per_day', 0) for a in ready_activities), default=1),
-                    is_first_in_parallel
+                    is_first_in_parallel,
+                    activity  # Pass the entire activity object
                 )
                 
                 # Add score details to activity
@@ -518,11 +636,9 @@ def index():
                 # Add constraints
                 activity['constraints'] = get_activity_constraints(activity, current_day)
                 
-                per_day_cost = (
-                    activity['material_cost_per_day'] +
-                    activity['manpower_cost_per_day'] +
-                    activity['equipment_cost_per_day']
-                )
+                # Calculate costs based on equipment type
+                equipment_cost = get_equipment_cost(activity, activity['equipment_type'])
+                per_day_cost = activity['manpower_cost_per_day'] + equipment_cost
                 activity['planned_cost'] = activity['duration'] * per_day_cost
                 activity['delay_cost'] = 0
 
@@ -540,7 +656,8 @@ def index():
                                    actual_completion_days=actual_completion_days, all_activities=activities,
                                    total_duration=total_duration, prev_ready=prev_ready_ids, summary=summary,
                                    sidebar_options=sidebar_options, cpm_mermaid=cpm_mermaid, daywise_costs=daywise_costs,
-                                   parallel_groups=parallel_groups, owner_name="Patchikolla Preetham Sai")
+                                   parallel_groups=parallel_groups, owner_name="Patchikolla Preetham Sai",
+                                   critical_paths=critical_paths, project_duration=project_duration)
 
         else:
             session['actual_completion_days'] = {}
@@ -583,7 +700,8 @@ def index():
                     manpower_ratio,  # manpower_ratio
                     activity['delay_cost_per_day'],
                     max((a.get('delay_cost_per_day', 0) for a in ready_activities), default=1),
-                    is_first_in_parallel
+                    is_first_in_parallel,
+                    activity  # Pass the entire activity object
                 )
                 
                 # Add score details to activity
@@ -619,9 +737,8 @@ def index():
                 activity['constraints'] = get_activity_constraints(activity, current_day)
                 
                 per_day_cost = (
-                    activity['material_cost_per_day'] +
                     activity['manpower_cost_per_day'] +
-                    activity['equipment_cost_per_day']
+                    activity['rented_equipment_cost_per_day']
                 )
                 activity['planned_cost'] = activity['duration'] * per_day_cost
                 activity['delay_cost'] = 0
@@ -634,11 +751,12 @@ def index():
                 status = get_status(activity['id'], actual_completion_days, current_day)
                 actual_finish = actual_completion_days.get(activity['id'])
                 planned_finish = get_planned_finish_day(activity, activities, actual_completion_days)
-                per_day_cost = (
-                    activity['material_cost_per_day'] +
-                    activity['manpower_cost_per_day'] +
-                    activity['equipment_cost_per_day']
-                )
+                
+                # Get equipment type from form, default to owned
+                equipment_type = request.form.get(f"equipment_type_{activity['id']}", 'owned')
+                equipment_cost = get_equipment_cost(activity, equipment_type)
+                
+                per_day_cost = activity['manpower_cost_per_day'] + equipment_cost
                 planned_cost = activity['duration'] * per_day_cost
                 delay_days = 0
                 actual_cost = planned_cost
@@ -651,7 +769,8 @@ def index():
                     "delay_days": delay_days,
                     "planned_cost": planned_cost,
                     "actual_cost": actual_cost,
-                    "delay_cost": delay_cost
+                    "delay_cost": delay_cost,
+                    "equipment_type": equipment_type
                 })
 
             sidebar_options = ["Project Overview", "CPM Schedule", "Cost Analysis", "Settings"]
@@ -663,7 +782,8 @@ def index():
                                    actual_completion_days=actual_completion_days, all_activities=activities,
                                    total_duration=total_duration, prev_ready=prev_ready_ids, summary=summary,
                                    sidebar_options=sidebar_options, cpm_mermaid=cpm_mermaid, daywise_costs=daywise_costs,
-                                   parallel_groups=parallel_groups, owner_name="Patchikolla Preetham Sai")
+                                   parallel_groups=parallel_groups, owner_name="Patchikolla Preetham Sai",
+                                   critical_paths=critical_paths, project_duration=project_duration)
     except Exception as e:
         print(f"Error in index route: {e}")
         return "An error occurred. Please try again.", 500
