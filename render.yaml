@@ -1,19 +1,9 @@
 services:
   - type: web
-    name: parallel-task-prioritize
+    name: construction-project-management
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: parallel-task-db
-          property: connectionString
-
-  - type: postgres
-    name: parallel-task-db
-    plan: free
+        value: 3.13.4
