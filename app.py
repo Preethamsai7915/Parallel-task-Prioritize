@@ -6,31 +6,48 @@ from itertools import permutations
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_secret_key')
 
+# Ensure the application is in production mode
+app.config['ENV'] = 'production'
+app.config['DEBUG'] = False
+
 def load_activities():
     activities = []
     try:
-        with open('activities.csv', newline='') as csvfile:
+        # Get the absolute path to the activities.csv file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        csv_path = os.path.join(current_dir, 'activities.csv')
+        
+        if not os.path.exists(csv_path):
+            print(f"Error: activities.csv not found at {csv_path}")
+            return []
+            
+        with open(csv_path, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                activities.append({
-                    "id": row["id"],
-                    "name": row["name"],
-                    "duration": int(row["duration"]),
-                    "planned_manpower": int(row["planned_manpower"]),
-                    "dependency_ids": [d.strip() for d in row["dependency_ids"].split(',') if d.strip()],
-                    "start_day": int(row["start_day"]),
-                    "manpower_cost_per_day": int(row["manpower_cost_per_day"]),
-                    "rented_equipment_cost_per_day": int(row["rented_equipment_cost_per_day"]),
-                    "owned_equipment_om_cost_per_day": int(row["owned_equipment_om_cost_per_day"]),
-                    "no_equipment_cost_per_day": int(row["no_equipment_cost_per_day"]),
-                    "total_delay_cost_per_day": int(row["total_delay_cost_per_day"]) if "total_delay_cost_per_day" in row and row["total_delay_cost_per_day"] else (
-                        int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
-                    )
-                })
+                try:
+                    activities.append({
+                        "id": row["id"],
+                        "name": row["name"],
+                        "duration": int(row["duration"]),
+                        "planned_manpower": int(row["planned_manpower"]),
+                        "dependency_ids": [d.strip() for d in row["dependency_ids"].split(',') if d.strip()],
+                        "start_day": int(row["start_day"]),
+                        "manpower_cost_per_day": int(row["manpower_cost_per_day"]),
+                        "rented_equipment_cost_per_day": int(row["rented_equipment_cost_per_day"]),
+                        "owned_equipment_om_cost_per_day": int(row["owned_equipment_om_cost_per_day"]),
+                        "no_equipment_cost_per_day": int(row["no_equipment_cost_per_day"]),
+                        "total_delay_cost_per_day": int(row["total_delay_cost_per_day"]) if "total_delay_cost_per_day" in row and row["total_delay_cost_per_day"] else (
+                            int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
+                        )
+                    })
+                except (ValueError, KeyError) as e:
+                    print(f"Error processing row: {row}, Error: {e}")
+                    continue
+                    
+        return activities
     except Exception as e:
         print(f"Error loading activities: {e}")
         return []
-    return activities
 
 def calculate_sequence_cost(sequence, activities, current_day):
     """
@@ -789,5 +806,5 @@ def index():
         return "An error occurred. Please try again.", 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)
