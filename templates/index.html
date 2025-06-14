@@ -428,7 +428,8 @@
                                             <th>Activity</th>
                                             <th>Planned Manpower</th>
                                             <th>Available Manpower</th>
-                                            <th>Material Avail. (0-1)</th>
+                                            <th>Man in other site</th>
+                                            <th>Material Availability</th>
                                             <th>Equipment Avail.</th>
                                             <th>Planned Cost (₹)</th>
                                             <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
@@ -443,8 +444,8 @@
                                             <td>{{ activity.name }}</td>
                                             <td>{{ activity.planned_manpower }}</td>
                                             <td>
-                                                <input type="number" class="form-control" name="manpower_{{ activity.id }}" 
-                                                    value="{{ activity.available_manpower }}" min="0" max="1000" required>
+                                                <input type="number" class="form-control" name="available_manpower_{{ activity.id }}" 
+                                                    value="{{ activity.available_manpower }}" readonly>
                                                 {% if activity.available_manpower < activity.planned_manpower %}
                                                 <div class="constraint-warning">
                                                     ⚠️ Manpower shortage: {{ activity.planned_manpower - activity.available_manpower }} workers needed
@@ -452,8 +453,35 @@
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                <input type="number" step="0.01" class="form-control" name="material_{{ activity.id }}" 
-                                                    value="{{ activity.material }}" min="0" max="1" required>
+                                                <input type="number" class="form-control manpower-other-site" 
+                                                    name="manpower_idle_{{ activity.id }}" 
+                                                    value="{{ activity.manpower_in_other_site|default(0) }}" 
+                                                    min="0" max="{{ activity.planned_manpower }}" 
+                                                    data-planned-manpower="{{ activity.planned_manpower }}"
+                                                    data-activity-id="{{ activity.id }}"
+                                                    required>
+                                                {% if activity.manpower_in_other_site > 0 %}
+                                                <div class="text-warning">
+                                                    ⚠️ {{ activity.manpower_in_other_site }} workers at other sites
+                                                </div>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <select class="form-select material-availability" 
+                                                    name="material_type_{{ activity.id }}" 
+                                                    data-activity-id="{{ activity.id }}"
+                                                    required>
+                                                    <option value="100" {% if activity.material == 1.0 %}selected{% endif %}>100% Available</option>
+                                                    <option value="custom" {% if activity.material != 1.0 and activity.material != 0 %}selected{% endif %}>Custom Percentage</option>
+                                                    <option value="0" {% if activity.material == 0 %}selected{% endif %}>Not Available</option>
+                                                </select>
+                                                <div class="material-percentage mt-2" style="display: {% if activity.material != 1.0 and activity.material != 0 %}block{% else %}none{% endif %};">
+                                                    <input type="number" class="form-control" 
+                                                        name="material_percentage_{{ activity.id }}" 
+                                                        value="{{ (activity.material * 100)|round }}" 
+                                                        min="0" max="100" step="1"
+                                                        placeholder="Enter percentage">
+                                                </div>
                                             </td>
                                             <td>
                                                 <select class="form-select" name="equipment_type_{{ activity.id }}">
@@ -535,6 +563,8 @@
                                             {{ activity.critical_path_score }}
                                             {% if activity.is_critical %}
                                             <span class="badge bg-danger ms-2">Critical Path</span>
+                                            {% elif activity.is_close_to_critical %}
+                                            <span class="badge bg-warning ms-2">Near Critical Path</span>
                                             {% endif %}
                                         </span>
                                         <div class="score-weight">(Weight: {{ activity.weights.critical_path }}%)</div>
@@ -549,7 +579,7 @@
                                     <div class="card-body">
                                         <div class="row">
                                             <div class="col-md-6">
-                                                <h6 class="mb-3">Daily Costs:</h6>
+                                                <h6 class="mb-3">Base Daily Costs:</h6>
                                                 <ul class="list-unstyled">
                                                     <li class="mb-2">
                                                         <strong>Equipment Cost:</strong>
@@ -565,28 +595,43 @@
                                                         <strong>Manpower Cost:</strong>
                                                         ₹{{ activity.manpower_cost_per_day }}/day
                                                     </li>
-                                                    <li class="mb-2">
-                                                        <strong>Total Daily Cost:</strong>
-                                                        ₹{{ activity.manpower_cost_per_day + (activity.rented_equipment_cost_per_day if activity.equipment_type == 'rented' else activity.owned_equipment_om_cost_per_day if activity.equipment_type == 'owned' else 0) }}/day
-                                                    </li>
                                                 </ul>
                                             </div>
                                             <div class="col-md-6">
-                                                <h6 class="mb-3">Delay Impact:</h6>
+                                                <h6 class="mb-3">Site Overhead Impact:</h6>
                                                 <ul class="list-unstyled">
-                                                    <li class="mb-2">
-                                                        <strong>Delay Days:</strong>
-                                                        {{ activity.delay_days }} days
-                                                    </li>
                                                     {% if activity.is_critical %}
                                                     <li class="mb-2">
-                                                        <strong>Critical Path Impact:</strong>
-                                                        <span class="text-danger">+20% additional cost</span>
+                                                        <strong>Critical Path Status:</strong>
+                                                        <span class="text-danger">Full Site Overhead Always Applied</span>
+                                                    </li>
+                                                    <li class="mb-2">
+                                                        <strong>Site Overhead Cost:</strong>
+                                                        ₹{{ activity.site_overhead_cost_per_day }}/day
+                                                    </li>
+                                                    {% elif activity.is_close_to_critical and activity.is_delayed %}
+                                                    <li class="mb-2">
+                                                        <strong>Near Critical Path Status:</strong>
+                                                        <span class="text-warning">Half Site Overhead Applied (Delayed)</span>
+                                                    </li>
+                                                    <li class="mb-2">
+                                                        <strong>Site Overhead Cost:</strong>
+                                                        ₹{{ (activity.site_overhead_cost_per_day * 0.5)|round }}/day
+                                                    </li>
+                                                    {% elif activity.is_close_to_critical %}
+                                                    <li class="mb-2">
+                                                        <strong>Status:</strong>
+                                                        <span class="text-success">No Site Overhead (Not Delayed)</span>
+                                                    </li>
+                                                    {% else %}
+                                                    <li class="mb-2">
+                                                        <strong>Status:</strong>
+                                                        <span class="text-success">No Site Overhead (Not Critical)</span>
                                                     </li>
                                                     {% endif %}
                                                     <li class="mb-2">
-                                                        <strong>Total Delay Cost:</strong>
-                                                        ₹{{ activity.delay_cost }}
+                                                        <strong>Total Delay Cost/Day:</strong>
+                                                        ₹{{ activity.total_delay_cost_per_day }}/day
                                                     </li>
                                                 </ul>
                                             </div>
@@ -594,10 +639,13 @@
                                         <div class="mt-3">
                                             <h6>Calculation Formula:</h6>
                                             <div class="bg-light p-3 rounded">
-                                                <p class="mb-2">Total Delay Cost = (Daily Equipment Cost + Daily Manpower Cost) × Delay Days</p>
+                                                <p class="mb-2">Base Delay Cost = Manpower Cost + Equipment Cost</p>
                                                 {% if activity.is_critical %}
-                                                <p class="mb-0">Critical Path Impact = Total Delay Cost × 20%</p>
-                                                <p class="mb-0">Final Delay Cost = Total Delay Cost + Critical Path Impact</p>
+                                                <p class="mb-0">Total Delay Cost = Base Delay Cost + Full Site Overhead (Always for Critical Path)</p>
+                                                {% elif activity.is_close_to_critical and activity.is_delayed %}
+                                                <p class="mb-0">Total Delay Cost = Base Delay Cost + (Site Overhead × 0.5) (Only when Delayed)</p>
+                                                {% else %}
+                                                <p class="mb-0">Total Delay Cost = Base Delay Cost (No Site Overhead)</p>
                                                 {% endif %}
                                             </div>
                                         </div>
@@ -932,6 +980,42 @@
     // Initialize cost charts when cost analysis section is active
     document.querySelector('[data-section="cost-analysis"]').addEventListener('click', function() {
         renderCostCharts();
+    });
+
+    // Add this to your existing JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle manpower in other site changes
+        document.querySelectorAll('.manpower-other-site').forEach(function(input) {
+            input.addEventListener('change', function() {
+                const plannedManpower = parseInt(this.dataset.plannedManpower);
+                const manpowerInOtherSite = parseInt(this.value) || 0;
+                const availableManpower = Math.max(0, plannedManpower - manpowerInOtherSite);
+                
+                // Update the available manpower field
+                const availableManpowerInput = document.querySelector(`input[name="available_manpower_${this.dataset.activityId}"]`);
+                if (availableManpowerInput) {
+                    availableManpowerInput.value = availableManpower;
+                }
+            });
+        });
+
+        // Handle material availability changes
+        document.querySelectorAll('.material-availability').forEach(function(select) {
+            select.addEventListener('change', function() {
+                const activityId = this.dataset.activityId;
+                const percentageDiv = this.nextElementSibling;
+                const percentageInput = percentageDiv.querySelector('input');
+                
+                if (this.value === 'custom') {
+                    percentageDiv.style.display = 'block';
+                    percentageInput.required = true;
+                } else {
+                    percentageDiv.style.display = 'none';
+                    percentageInput.required = false;
+                    percentageInput.value = this.value;
+                }
+            });
+        });
     });
 </script>
 </body>

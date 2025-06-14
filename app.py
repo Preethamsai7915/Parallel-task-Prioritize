@@ -25,6 +25,12 @@ def load_activities():
             reader = csv.DictReader(csvfile)
             for row in reader:
                 try:
+                    # Calculate base delay cost without site overheads
+                    base_delay_cost = int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
+                    
+                    # Get site overhead cost
+                    site_overhead = int(row["site_overhead_cost_per_day"]) if "site_overhead_cost_per_day" in row else 0
+                    
                     activities.append({
                         "id": row["id"],
                         "name": row["name"],
@@ -36,9 +42,9 @@ def load_activities():
                         "rented_equipment_cost_per_day": int(row["rented_equipment_cost_per_day"]),
                         "owned_equipment_om_cost_per_day": int(row["owned_equipment_om_cost_per_day"]),
                         "no_equipment_cost_per_day": int(row["no_equipment_cost_per_day"]),
-                        "total_delay_cost_per_day": int(row["total_delay_cost_per_day"]) if "total_delay_cost_per_day" in row and row["total_delay_cost_per_day"] else (
-                            int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
-                        )
+                        "site_overhead_cost_per_day": site_overhead,
+                        "base_delay_cost_per_day": base_delay_cost,  # Store base delay cost separately
+                        "total_delay_cost_per_day": base_delay_cost  # Initialize without site overheads
                     })
                 except (ValueError, KeyError) as e:
                     print(f"Error processing row: {row}, Error: {e}")
@@ -180,23 +186,46 @@ def is_activity_critical(activity, critical_paths):
         print(f"Error checking if activity is critical: {e}")
         return False
 
+def is_activity_close_to_critical(activity, critical_paths, threshold=2):
+    """Check if an activity is close to any critical path within a threshold."""
+    try:
+        for path in critical_paths:
+            # Check if activity is directly connected to any critical path activity
+            for critical_activity in path:
+                # Check if activity is a dependency of critical activity
+                if activity['id'] in critical_activity['dependency_ids']:
+                    return True
+                # Check if critical activity is a dependency of this activity
+                if critical_activity['id'] in activity['dependency_ids']:
+                    return True
+                # Check if they share dependencies
+                if set(activity['dependency_ids']) & set(critical_activity['dependency_ids']):
+                    return True
+        return False
+    except Exception as e:
+        print(f"Error checking if activity is close to critical: {e}")
+        return False
+
 def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False, activity=None):
     """
-    Calculate the total score for an activity based on various factors.
-    
-    Scoring weights:
-    - Delay Score: 35%
-    - Equipment Score: 25%
-    - Manpower Score: 15%
-    - Critical Path Score: 15%
-    - Material Score: 10%
-    
-    Critical Path Score:
-    - If activity is on critical path: 15 points
-    - If not on critical path: 0 points
-    - If all parallel activities are on critical path: 15 points for all
+    Calculate score for an activity based on various factors
     """
     try:
+        # Calculate base daily costs based on available manpower
+        if activity:
+            available_manpower = activity.get('available_manpower', activity['planned_manpower'])
+            manpower_ratio = available_manpower / activity['planned_manpower']
+            base_manpower_cost = activity['manpower_cost_per_day'] * manpower_ratio
+            
+            # Get equipment cost based on type
+            equipment_cost = get_equipment_cost(activity, activity.get('equipment_type', 'owned'))
+            
+            # Base daily cost is the sum of manpower and equipment costs
+            base_daily_cost = base_manpower_cost + equipment_cost
+            
+            # Update activity with calculated costs
+            activity['base_delay_cost_per_day'] = base_daily_cost
+
         # Calculate delay score (35%)
         delay_score = 0
         if max_delay_cost_per_day > 0:
@@ -237,6 +266,9 @@ def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max
             # Check if this activity is on any critical path
             if is_activity_critical(activity, critical_paths):
                 critical_path_score = 15
+            # Check if activity is close to critical path
+            elif is_activity_close_to_critical(activity, critical_paths):
+                critical_path_score = 10
             elif activity.get('parallel_group'):
                 # Check if all activities in parallel group are critical
                 all_critical = True
@@ -272,7 +304,7 @@ def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max
         return {
             'total_score': 50.0,
             'delay_score': 17.5,
-            'equipment_score': 0,  # Changed to 0 for equipment score in error case
+            'equipment_score': 0,
             'manpower_score': 7.5,
             'material_score': 5.0,
             'critical_path_score': 7.5,
@@ -550,6 +582,44 @@ def get_equipment_cost(activity, equipment_type):
     else:  # no_equipment
         return activity['no_equipment_cost_per_day']
 
+def update_activity_delay_costs(activities, critical_paths, current_day):
+    try:
+        for activity in activities:
+            # Calculate base daily cost based on available manpower and equipment
+            available_manpower = activity.get('available_manpower', activity['planned_manpower'])
+            manpower_ratio = available_manpower / activity['planned_manpower']
+            base_manpower_cost = activity['manpower_cost_per_day'] * manpower_ratio
+            
+            # Get equipment cost based on type
+            equipment_type = activity.get('equipment_type', 'owned')
+            equipment_cost = get_equipment_cost(activity, equipment_type)
+            
+            # Base daily cost is the sum of manpower and equipment costs
+            base_daily_cost = base_manpower_cost + equipment_cost
+            
+            # Check if activity is critical or close to critical
+            is_critical = is_activity_critical(activity, critical_paths)
+            is_close_to_critical = is_activity_close_to_critical(activity, critical_paths)
+            
+            # Calculate total delay cost
+            if is_critical:
+                # For critical path activities, always include full site overhead
+                total_delay_cost = base_daily_cost + activity['site_overhead_cost_per_day']
+            elif is_close_to_critical and activity.get('is_delayed', False):
+                # For activities close to critical path, include half site overhead only if delayed
+                total_delay_cost = base_daily_cost + (activity['site_overhead_cost_per_day'] * 0.5)
+            else:
+                # For other activities, no site overhead
+                total_delay_cost = base_daily_cost
+            
+            # Update activity with calculated costs
+            activity['base_delay_cost_per_day'] = base_daily_cost
+            activity['total_delay_cost_per_day'] = total_delay_cost
+            activity['is_critical'] = is_critical
+            activity['is_close_to_critical'] = is_close_to_critical
+    except Exception as e:
+        print(f"Error updating activity delay costs: {e}")
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     try:
@@ -565,24 +635,53 @@ def index():
 
         # Calculate critical path
         critical_paths, project_duration = get_critical_path(activities)
-
+        
         if request.method == 'POST':
             try:
                 current_day = int(request.form.get('current_day', 1))
             except ValueError:
                 current_day = 1
-
-            # Update activity completion status
+            
+            # Update activity completion status and costs
             for activity in activities:
                 checkbox = request.form.get(f"complete_{activity['id']}")
                 if checkbox == 'on':
                     if activity['id'] not in actual_completion_days or actual_completion_days[activity['id']] > current_day:
                         actual_completion_days[activity['id']] = current_day
-                elif activity['id'] in actual_completion_days and actual_completion_days[activity['id']] >= current_day:
-                    del actual_completion_days[activity['id']]
-
+                    elif activity['id'] in actual_completion_days and actual_completion_days[activity['id']] >= current_day:
+                        del actual_completion_days[activity['id']]
+                
+                # Calculate actual manpower cost based on available manpower
+                manpower_in_other_site = int(request.form.get(f"manpower_idle_{activity['id']}", 0))
+                available_manpower = activity['planned_manpower'] - manpower_in_other_site
+                manpower_ratio = available_manpower / activity['planned_manpower']
+                
+                # Store both original and actual manpower costs
+                activity['original_manpower_cost_per_day'] = activity['manpower_cost_per_day']
+                activity['actual_manpower_cost_per_day'] = round(activity['manpower_cost_per_day'] * manpower_ratio, 2)
+                activity['manpower_cost_per_day'] = activity['actual_manpower_cost_per_day']  # Update for display
+                
+                # Get equipment type and cost
+                equipment_type = request.form.get(f"equipment_type_{activity['id']}", 'owned')
+                activity['equipment_type'] = equipment_type
+                equipment_cost = get_equipment_cost(activity, equipment_type)
+                
+                # Calculate base daily cost (ensure proper addition)
+                activity['base_delay_cost_per_day'] = round(activity['actual_manpower_cost_per_day'] + equipment_cost, 2)
+                
+                # Update total delay cost based on critical path status
+                if is_activity_critical(activity, critical_paths):
+                    activity['total_delay_cost_per_day'] = round(activity['base_delay_cost_per_day'] + activity['site_overhead_cost_per_day'], 2)
+                elif is_activity_close_to_critical(activity, critical_paths) and activity.get('is_delayed', False):
+                    activity['total_delay_cost_per_day'] = round(activity['base_delay_cost_per_day'] + (activity['site_overhead_cost_per_day'] * 0.5), 2)
+                else:
+                    activity['total_delay_cost_per_day'] = activity['base_delay_cost_per_day']
+            
             # Recalculate critical paths after activity updates
             critical_paths, project_duration = get_critical_path(activities)
+            
+            # Update delay costs based on critical path status and project extension
+            update_activity_delay_costs(activities, critical_paths, current_day)
 
             summary = []
             for activity in activities:
@@ -633,14 +732,33 @@ def index():
                 
                 # Get updated constraints from form with error handling
                 try:
-                    activity['available_manpower'] = int(request.form.get(f"manpower_{activity['id']}", activity['planned_manpower']))
+                    # First get manpower in other site
+                    manpower_in_other_site = int(request.form.get(f"manpower_idle_{activity['id']}", 0))
+                    activity['manpower_in_other_site'] = manpower_in_other_site
+                    
+                    # Then calculate available manpower based on planned manpower and manpower in other site
+                    available_manpower = activity['planned_manpower'] - manpower_in_other_site
+                    activity['available_manpower'] = max(0, available_manpower)  # Ensure it doesn't go below 0
                 except (ValueError, TypeError):
+                    activity['manpower_in_other_site'] = 0
                     activity['available_manpower'] = activity['planned_manpower']
                     
                 try:
-                    activity['material'] = float(request.form.get(f"material_{activity['id']}", 1.0))
-                except (ValueError, TypeError):
-                    activity['material'] = 1.0
+                    # Handle material availability
+                    material_type = request.form.get(f"material_type_{activity['id']}", '100')
+                    if material_type == '0':
+                        activity['material'] = 0.0  # Not Available
+                    elif material_type == '100':
+                        activity['material'] = 1.0  # 100% Available
+                    else:  # Custom percentage
+                        try:
+                            percentage = float(request.form.get(f"material_percentage_{activity['id']}", 100))
+                            activity['material'] = max(0.0, min(1.0, percentage / 100))  # Convert to 0-1 range
+                        except (ValueError, TypeError):
+                            activity['material'] = 1.0  # Default to 100% if invalid input
+                except Exception as e:
+                    print(f"Error processing material availability: {e}")
+                    activity['material'] = 1.0  # Default to 100% if any error
                     
                 # Get equipment type from form, default to owned
                 activity['equipment_type'] = request.form.get(f"equipment_type_{activity['id']}", 'owned')
@@ -744,8 +862,9 @@ def index():
                 activity['is_first_in_parallel'] = is_first_in_parallel
                 
                 # Set default values
+                activity['manpower_in_other_site'] = 0
                 activity['available_manpower'] = activity['planned_manpower']
-                activity['material'] = 1.0
+                activity['material'] = 1.0  # Default to 100% available
                 activity['equipment'] = True
                 
                 # Calculate manpower ratio
