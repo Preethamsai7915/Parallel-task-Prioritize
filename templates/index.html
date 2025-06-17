@@ -328,6 +328,7 @@
                                             <th>Actual Cost (₹)</th>
                                             <th>Delay Cost (₹)</th>
                                             <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                            <th>Float</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -366,6 +367,33 @@
                                                 {% endif %}
                                             </td>
                                             <td style="background:#e3f2fd;">₹{{ activity.total_delay_cost_per_day if activity.total_delay_cost_per_day else '-' }}</td>
+                                            <td>
+                                                {% if activity.total_float > 0 or activity.free_float > 0 %}
+                                                    {% if activity.free_float > 0 %}
+                                                        {% set remaining_free_float = activity.free_float - activity.delay_days if activity.delay_days > 0 else activity.free_float %}
+                                                        <span class="badge bg-success" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                            <i class="fas fa-clock me-1"></i>
+                                                            Free Float: {{ remaining_free_float }} days remaining
+                                                        </span>
+                                                        {% if activity.delay_days > 0 %}
+                                                            <div class="text-success mt-1">
+                                                                <small><i class="fas fa-info-circle me-1"></i>No cost overrun during free float period</small>
+                                                            </div>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                    {% if activity.total_float > 0 %}
+                                                        <span class="badge bg-warning mt-2" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                            <i class="fas fa-hourglass-half me-1"></i>
+                                                            Total Float: {{ activity.total_float }} days
+                                                        </span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="badge bg-danger" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                                        No Float
+                                                    </span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                     {% endfor %}
                                     </tbody>
@@ -570,6 +598,31 @@
                                         <div class="score-weight">(Weight: {{ activity.weights.critical_path }}%)</div>
                                     </div>
                                 </div>
+                                {% if activity.total_float > 0 or activity.free_float > 0 %}
+                                <div class="row score-details mb-3">
+                                    <div class="col-12">
+                                        <span class="score-detail-label">Float Information:</span>
+                                        <div class="mt-2">
+                                            {% if activity.free_float > 0 %}
+                                                <span class="badge bg-success me-2">Free Float: {{ activity.free_float }} days</span>
+                                            {% endif %}
+                                            {% if activity.total_float > 0 %}
+                                                <span class="badge bg-warning">Total Float: {{ activity.total_float }} days</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-muted mt-1">
+                                            <small>
+                                                {% if activity.free_float > 0 %}
+                                                    Free Float: Maximum delay without affecting successor activities<br>
+                                                {% endif %}
+                                                {% if activity.total_float > 0 %}
+                                                    Total Float: Maximum delay without affecting project completion
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
 
                             <!-- Delay Cost Calculation Section -->
@@ -671,7 +724,8 @@
                                             <tr>
                                                 <th class="position">Position</th>
                                                 <th class="activity">Activity</th>
-                                                <th class="cost">Delay Cost/Day</th>
+                                                <th class="delay-cost">Delay Cost/Day</th>
+                                                <th class="delay-score">Delay Score</th>
                                                 <th class="score">Total Score</th>
                                                 <th class="status">Status</th>
                                             </tr>
@@ -681,7 +735,8 @@
                                             <tr {% if sequence.is_best %}class="best-sequence"{% endif %}>
                                                 <td class="text-center">{{ loop.index }}</td>
                                                 <td>{{ act.name }}</td>
-                                                <td class="delay-cost">₹{{ act.delay_cost }}</td>
+                                                <td class="delay-cost">₹{{ act.delay_cost_for_score }}</td>
+                                                <td class="delay-score">{{ act.delay_score }}</td>
                                                 <td class="score">{{ act.score.total_score }}</td>
                                                 <td class="text-center">
                                                     {% if loop.index == 1 %}
@@ -797,6 +852,59 @@
                         <h5 class="text-white">Total Project Duration: {{ critical_paths[0]|sum(attribute='duration') if critical_paths else 0 }} days</h5>
                         <p class="text-muted mt-2">Note: The critical paths represent the longest sequences of activities that determine the minimum project duration. Any delay in these activities will directly impact the project completion date. Activities on the critical paths have zero float/slack time.</p>
                     </div>
+                </div>
+            </div>
+            <!-- Float Analysis Table -->
+            <div class="card-table mt-4">
+                <h4 class="text-center mb-4">Activity Float Analysis</h4>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Activity ID</th>
+                                <th>Activity Name</th>
+                                <th>Duration</th>
+                                <th>Early Start</th>
+                                <th>Early Finish</th>
+                                <th>Late Start</th>
+                                <th>Late Finish</th>
+                                <th>Total Float</th>
+                                <th>Free Float</th>
+                                <th>Critical Path</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for activity in all_activities %}
+                            <tr {% if activity.total_float == 0 %}class="table-danger"{% endif %}>
+                                <td>{{ activity.id }}</td>
+                                <td>{{ activity.name }}</td>
+                                <td>{{ activity.duration }}</td>
+                                <td>{{ activity.early_start }}</td>
+                                <td>{{ activity.early_finish }}</td>
+                                <td>{{ activity.late_start }}</td>
+                                <td>{{ activity.late_finish }}</td>
+                                <td>{{ activity.total_float }}</td>
+                                <td>{{ activity.free_float }}</td>
+                                <td>
+                                    {% if activity.total_float == 0 %}
+                                        <span class="badge bg-danger">Critical</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Non-Critical</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <h5>Float Analysis Notes:</h5>
+                    <ul class="text-muted">
+                        <li><strong>Total Float:</strong> The maximum amount of time an activity can be delayed without delaying the project completion date.</li>
+                        <li><strong>Free Float:</strong> The maximum amount of time an activity can be delayed without delaying the early start of any successor activity.</li>
+                        <li>Activities with zero total float are on the critical path.</li>
+                        <li>Free float is always less than or equal to total float.</li>
+                    </ul>
                 </div>
             </div>
         </div>

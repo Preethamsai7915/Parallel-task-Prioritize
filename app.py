@@ -71,6 +71,7 @@ def calculate_sequence_cost(sequence, activities, current_day):
         
         for i, activity_id in enumerate(sequence):
             activity = activity_dict[activity_id]
+            delay_cost=0
             
             # Calculate delay cost for this activity
             if i > 0:  # Skip delay calculation for first activity
@@ -89,7 +90,9 @@ def calculate_sequence_cost(sequence, activities, current_day):
                 min(1.0, activity.get('available_manpower', activity['planned_manpower']) / activity['planned_manpower']) if activity['planned_manpower'] > 0 else 0,  # manpower_ratio
                 activity['total_delay_cost_per_day'] if not is_first else 0,
                 max_delay_cost,
-                is_first
+                is_first,
+                activity,
+                activities  # Pass the activities list as all_activities
             )
             
             sequence_scores.append({
@@ -206,7 +209,7 @@ def is_activity_close_to_critical(activity, critical_paths, threshold=2):
         print(f"Error checking if activity is close to critical: {e}")
         return False
 
-def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False, activity=None):
+def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max_delay_cost_per_day, is_first_in_parallel=False, activity=None, all_activities=None):
     """
     Calculate score for an activity based on various factors
     """
@@ -225,12 +228,64 @@ def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max
             
             # Update activity with calculated costs
             activity['base_delay_cost_per_day'] = base_daily_cost
-
+        
         # Calculate delay score (35%)
         delay_score = 0
-        if max_delay_cost_per_day > 0:
-            # Normalize delay cost to 0-1 range and multiply by 35
-            delay_score = (1 - (delay_cost_per_day / max_delay_cost_per_day)) * 35
+        if activity:
+            # First check if activity has free float and is within it
+            free_float = activity.get('free_float', 0)
+            current_delay = activity.get('current_delay', 0)
+            
+            # If activity has free float and current delay is within it, no delay cost or score
+            if free_float > 0 and current_delay <= free_float:
+                activity['total_delay_cost_per_day'] = 0
+                delay_score = 0
+            else:
+                # Only calculate delay score if beyond free float or no free float
+                if activity.get('parallel_group'):
+                    # For parallel activities, calculate proportional score based on max delay cost
+                    parallel_activities = activity['parallel_group']
+                    
+                    # Filter out activities that are within their free float
+                    effective_parallel_activities = []
+                    for act in parallel_activities:
+                        act_free_float = act.get('free_float', 0)
+                        act_current_delay = act.get('current_delay', 0)
+                        if act_free_float == 0 or act_current_delay > act_free_float:
+                            effective_parallel_activities.append(act)
+                    
+                    if effective_parallel_activities:
+                        max_parallel_delay_cost = max(act.get('total_delay_cost_per_day', 0) for act in effective_parallel_activities)
+                        current_activity_delay_cost = activity.get('total_delay_cost_per_day', 0)
+                        
+                        if max_parallel_delay_cost > 0:
+                            delay_score = round((current_activity_delay_cost * 35) / max_parallel_delay_cost, 2)
+                else:
+                    # For non-parallel activities
+                    if all_activities:
+                        # Find activities with the same dependencies
+                        same_dep_activities = [a for a in all_activities if a.get('dependency_ids') == activity.get('dependency_ids')]
+                        if len(same_dep_activities) > 1:
+                            # Filter out activities that are within their free float
+                            effective_same_dep_activities = []
+                            for act in same_dep_activities:
+                                act_free_float = act.get('free_float', 0)
+                                act_current_delay = act.get('current_delay', 0)
+                                if act_free_float == 0 or act_current_delay > act_free_float:
+                                    effective_same_dep_activities.append(act)
+                            
+                            if effective_same_dep_activities:
+                                max_delay_cost = max(act.get('total_delay_cost_per_day', 0) for act in effective_same_dep_activities)
+                                current_delay_cost = activity.get('total_delay_cost_per_day', 0)
+                                
+                                if max_delay_cost > 0:
+                                    delay_score = round((current_delay_cost * 35) / max_delay_cost, 2)
+                        else:
+                            # Single activity with no parallel activities
+                            delay_score = 35
+                    else:
+                        # No other activities to compare with
+                        delay_score = 35
 
         # Calculate equipment score (25%)
         equipment_score = 0
@@ -620,6 +675,64 @@ def update_activity_delay_costs(activities, critical_paths, current_day):
     except Exception as e:
         print(f"Error updating activity delay costs: {e}")
 
+def get_float_values(activities):
+    # Calculate early start and early finish
+    for activity in activities:
+        activity['early_start'] = 0
+        activity['early_finish'] = 0
+        activity['late_start'] = 0
+        activity['late_finish'] = 0
+        activity['total_float'] = 0
+        activity['free_float'] = 0
+
+    # Forward pass
+    for activity in activities:
+        if not activity.get('dependency_ids'):
+            activity['early_start'] = 1
+        else:
+            max_early_finish = 0
+            for dep_id in activity['dependency_ids']:
+                dep = next((a for a in activities if a['id'] == dep_id), None)
+                if dep and dep['early_finish'] > max_early_finish:
+                    max_early_finish = dep['early_finish']
+            activity['early_start'] = max_early_finish + 1
+        activity['early_finish'] = activity['early_start'] + activity['duration'] - 1
+
+    # Find project duration
+    project_duration = max(activity['early_finish'] for activity in activities)
+
+    # Backward pass
+    for activity in reversed(activities):
+        # Find successors
+        successors = [a for a in activities if a.get('dependency_ids') and activity['id'] in a['dependency_ids']]
+        
+        if not successors:
+            activity['late_finish'] = project_duration
+        else:
+            min_late_start = float('inf')
+            for succ in successors:
+                if succ['late_start'] < min_late_start:
+                    min_late_start = succ['late_start']
+            activity['late_finish'] = min_late_start - 1
+        
+        activity['late_start'] = activity['late_finish'] - activity['duration'] + 1
+        
+        # Calculate floats
+        activity['total_float'] = activity['late_start'] - activity['early_start']
+        activity['free_float'] = float('inf')
+        
+        if successors:
+            min_early_start = min(succ['early_start'] for succ in successors)
+            activity['free_float'] = min_early_start - activity['early_finish'] - 1
+        else:
+            activity['free_float'] = project_duration - activity['early_finish']
+        
+        # Ensure floats are non-negative
+        activity['total_float'] = max(0, activity['total_float'])
+        activity['free_float'] = max(0, activity['free_float'])
+
+    return activities
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     try:
@@ -700,8 +813,24 @@ def index():
                 delay_cost = 0
                 if actual_finish is not None:
                     delay_days = max(0, actual_finish - planned_finish)
-                    actual_cost = (activity['duration'] + delay_days) * per_day_cost
-                    delay_cost = actual_cost - planned_cost
+                    # Check if activity has free float and is within it
+                    free_float = activity.get('free_float', 0)
+                    remaining_free_float = max(0, free_float - delay_days) if delay_days > 0 else free_float
+                    activity['remaining_free_float'] = remaining_free_float
+                    
+                    # Calculate costs based on free float
+                    if free_float > 0 and delay_days <= free_float:
+                        # If within free float, no cost overrun
+                        actual_cost = planned_cost
+                        delay_cost = 0
+                        activity['is_within_free_float'] = True
+                    else:
+                        # Only calculate cost overrun if beyond free float or no free float
+                        effective_delay_days = max(0, delay_days - free_float) if free_float > 0 else delay_days
+                        actual_cost = (activity['duration'] + effective_delay_days) * per_day_cost
+                        delay_cost = actual_cost - planned_cost
+                        activity['is_within_free_float'] = False
+
                 summary.append({
                     **activity,
                     "status": status,
@@ -711,7 +840,11 @@ def index():
                     "planned_cost": planned_cost,
                     "actual_cost": actual_cost,
                     "delay_cost": delay_cost,
-                    "equipment_type": equipment_type
+                    "equipment_type": equipment_type,
+                    "total_float": activity.get('total_float', 0),
+                    "free_float": activity.get('free_float', 0),
+                    "remaining_free_float": activity.get('remaining_free_float', activity.get('free_float', 0)),
+                    "is_within_free_float": activity.get('is_within_free_float', False)
                 })
 
             ready_activities = get_ready_activities(activities, actual_completion_days, current_day)
@@ -787,7 +920,8 @@ def index():
                     activity['delay_cost_per_day'],
                     max_delay_cost,
                     is_first_in_parallel,
-                    activity  # Pass the entire activity object
+                    activity,
+                    activities  # Pass the activities list as all_activities
                 )
                 
                 # Add score details to activity
@@ -837,6 +971,37 @@ def index():
 
             cpm_mermaid = build_cpm_mermaid(activities)
             daywise_costs = build_daywise_costs(activities, summary, total_duration)
+
+            # Before rendering the template, ensure all_activities have float values
+            activities = get_float_values(activities)
+
+            # --- FINAL: Delay score based on base_delay_cost_per_day in parallel group (user requirement, no zeroing for first activity) ---
+            for activity in ready_activities:
+                if 'sequence_options' in activity:
+                    for option in activity['sequence_options']:
+                        group_acts = option['activities']
+                        delay_costs_for_score = []
+                        
+                        # First pass: collect all delay costs
+                        for act in group_acts:
+                            actual_act = next((a for a in ready_activities if a['id'] == act['id']), None)
+                            if actual_act:
+                                delay_cost = actual_act.get('total_delay_cost_per_day', 0)
+                                actual_act['delay_cost_for_score'] = delay_cost
+                                delay_costs_for_score.append(delay_cost)
+                        
+                        # Find max delay cost
+                        max_delay_cost_for_score = max(delay_costs_for_score) if delay_costs_for_score else 1
+                        
+                        # Second pass: calculate scores
+                        for act in group_acts:
+                            actual_act = next((a for a in ready_activities if a['id'] == act['id']), None)
+                            if actual_act:
+                                if actual_act.get('delay_cost_for_score', 0) == 0:
+                                    actual_act['delay_score'] = 0
+                                else:
+                                    actual_act['delay_score'] = round((actual_act['delay_cost_for_score'] / max_delay_cost_for_score) * 35, 2)
+                                print(f"Activity {actual_act['id']}: delay_cost={actual_act['delay_cost_for_score']}, max_delay_cost={max_delay_cost_for_score}, score={actual_act['delay_score']}")
 
             return render_template('index.html', activities=ready_activities, updated=True, current_day=current_day,
                                    actual_completion_days=actual_completion_days, all_activities=activities,
@@ -888,7 +1053,8 @@ def index():
                     activity['delay_cost_per_day'],
                     max((a.get('delay_cost_per_day', 0) for a in ready_activities), default=1),
                     is_first_in_parallel,
-                    activity  # Pass the entire activity object
+                    activity,
+                    activities  # Pass the activities list as all_activities
                 )
                 
                 # Add score details to activity
@@ -948,6 +1114,26 @@ def index():
                 delay_days = 0
                 actual_cost = planned_cost
                 delay_cost = 0
+                if actual_finish is not None:
+                    delay_days = max(0, actual_finish - planned_finish)
+                    # Check if activity has free float and is within it
+                    free_float = activity.get('free_float', 0)
+                    remaining_free_float = max(0, free_float - delay_days) if delay_days > 0 else free_float
+                    activity['remaining_free_float'] = remaining_free_float
+                    
+                    # Calculate costs based on free float
+                    if free_float > 0 and delay_days <= free_float:
+                        # If within free float, no cost overrun
+                        actual_cost = planned_cost
+                        delay_cost = 0
+                        activity['is_within_free_float'] = True
+                    else:
+                        # Only calculate cost overrun if beyond free float or no free float
+                        effective_delay_days = max(0, delay_days - free_float) if free_float > 0 else delay_days
+                        actual_cost = (activity['duration'] + effective_delay_days) * per_day_cost
+                        delay_cost = actual_cost - planned_cost
+                        activity['is_within_free_float'] = False
+
                 summary.append({
                     **activity,
                     "status": status,
@@ -957,13 +1143,48 @@ def index():
                     "planned_cost": planned_cost,
                     "actual_cost": actual_cost,
                     "delay_cost": delay_cost,
-                    "equipment_type": equipment_type
+                    "equipment_type": equipment_type,
+                    "total_float": activity.get('total_float', 0),
+                    "free_float": activity.get('free_float', 0),
+                    "remaining_free_float": activity.get('remaining_free_float', activity.get('free_float', 0)),
+                    "is_within_free_float": activity.get('is_within_free_float', False)
                 })
 
             sidebar_options = ["Project Overview", "CPM Schedule", "Cost Analysis", "Settings"]
 
             cpm_mermaid = build_cpm_mermaid(activities)
             daywise_costs = build_daywise_costs(activities, summary, total_duration)
+
+            # Before rendering the template, ensure all_activities have float values
+            activities = get_float_values(activities)
+
+            # --- FINAL: Delay score based on base_delay_cost_per_day in parallel group (user requirement, no zeroing for first activity) ---
+            for activity in ready_activities:
+                if 'sequence_options' in activity:
+                    for option in activity['sequence_options']:
+                        group_acts = option['activities']
+                        delay_costs_for_score = []
+                        
+                        # First pass: collect all delay costs
+                        for act in group_acts:
+                            actual_act = next((a for a in ready_activities if a['id'] == act['id']), None)
+                            if actual_act:
+                                delay_cost = actual_act.get('total_delay_cost_per_day', 0)
+                                actual_act['delay_cost_for_score'] = delay_cost
+                                delay_costs_for_score.append(delay_cost)
+                        
+                        # Find max delay cost
+                        max_delay_cost_for_score = max(delay_costs_for_score) if delay_costs_for_score else 1
+                        
+                        # Second pass: calculate scores
+                        for act in group_acts:
+                            actual_act = next((a for a in ready_activities if a['id'] == act['id']), None)
+                            if actual_act:
+                                if actual_act.get('delay_cost_for_score', 0) == 0:
+                                    actual_act['delay_score'] = 0
+                                else:
+                                    actual_act['delay_score'] = round((actual_act['delay_cost_for_score'] / max_delay_cost_for_score) * 35, 2)
+                                print(f"Activity {actual_act['id']}: delay_cost={actual_act['delay_cost_for_score']}, max_delay_cost={max_delay_cost_for_score}, score={actual_act['delay_score']}")
 
             return render_template('index.html', activities=ready_activities, updated=False, current_day=current_day,
                                    actual_completion_days=actual_completion_days, all_activities=activities,
