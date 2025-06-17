@@ -318,7 +318,6 @@
                                             <th>ID</th>
                                             <th>Activity</th>
                                             <th>Duration</th>
-                                            <th>Planned Manpower</th>
                                             <th>Dependencies</th>
                                             <th>Status</th>
                                             <th>Actual Completion Day</th>
@@ -337,7 +336,6 @@
                                             <td>{{ activity.id }}</td>
                                             <td>{{ activity.name }}</td>
                                             <td>{{ activity.duration }}</td>
-                                            <td>{{ activity.planned_manpower }}</td>
                                             <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
                                             <td>
                                                 {% if activity.status == "Completed" %}
@@ -456,7 +454,9 @@
                                             <th>Activity</th>
                                             <th>Planned Manpower</th>
                                             <th>Available Manpower</th>
-                                            <th>Man in other site</th>
+                                            <th>Skilled (₹{{ activities[0].skilled_cost_per_day if activities else 300 }}/day)</th>
+                                            <th>Semi-Skilled (₹{{ activities[0].semi_skilled_cost_per_day if activities else 200 }}/day)</th>
+                                            <th>Unskilled (₹{{ activities[0].unskilled_cost_per_day if activities else 100 }}/day)</th>
                                             <th>Material Availability</th>
                                             <th>Equipment Avail.</th>
                                             <th>Planned Cost (₹)</th>
@@ -470,7 +470,14 @@
                                     {% for activity in activities %}
                                         <tr>
                                             <td>{{ activity.name }}</td>
-                                            <td>{{ activity.planned_manpower }}</td>
+                                            <td>
+                                                <div class="small">
+                                                    <div>Skilled: {{ activity.skilled_manpower }}</div>
+                                                    <div>Semi-Skilled: {{ activity.semi_skilled_manpower }}</div>
+                                                    <div>Unskilled: {{ activity.unskilled_manpower }}</div>
+                                                    <div class="fw-bold">Total: {{ activity.planned_manpower }}</div>
+                                                </div>
+                                            </td>
                                             <td>
                                                 <input type="number" class="form-control" name="available_manpower_{{ activity.id }}" 
                                                     value="{{ activity.available_manpower }}" readonly>
@@ -481,18 +488,46 @@
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                <input type="number" class="form-control manpower-other-site" 
-                                                    name="manpower_idle_{{ activity.id }}" 
-                                                    value="{{ activity.manpower_in_other_site|default(0) }}" 
-                                                    min="0" max="{{ activity.planned_manpower }}" 
-                                                    data-planned-manpower="{{ activity.planned_manpower }}"
-                                                    data-activity-id="{{ activity.id }}"
-                                                    required>
-                                                {% if activity.manpower_in_other_site > 0 %}
-                                                <div class="text-warning">
-                                                    ⚠️ {{ activity.manpower_in_other_site }} workers at other sites
+                                                <div class="mb-2">
+                                                    <label class="form-label small">Idle:</label>
+                                                    <input type="number" class="form-control form-control-sm manpower-skilled-idle" 
+                                                        name="skilled_idle_{{ activity.id }}" 
+                                                        value="{{ activity.skilled_idle|default(0) }}" 
+                                                        min="0" max="{{ activity.skilled_manpower }}" 
+                                                        data-activity-id="{{ activity.id }}"
+                                                        required>
                                                 </div>
-                                                {% endif %}
+                                                <div class="small text-muted">
+                                                    Available: {{ activity.available_skilled|default(activity.skilled_manpower) }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="mb-2">
+                                                    <label class="form-label small">Idle:</label>
+                                                    <input type="number" class="form-control form-control-sm manpower-semi-skilled-idle" 
+                                                        name="semi_skilled_idle_{{ activity.id }}" 
+                                                        value="{{ activity.semi_skilled_idle|default(0) }}" 
+                                                        min="0" max="{{ activity.semi_skilled_manpower }}" 
+                                                        data-activity-id="{{ activity.id }}"
+                                                        required>
+                                                </div>
+                                                <div class="small text-muted">
+                                                    Available: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="mb-2">
+                                                    <label class="form-label small">Idle:</label>
+                                                    <input type="number" class="form-control form-control-sm manpower-unskilled-idle" 
+                                                        name="unskilled_idle_{{ activity.id }}" 
+                                                        value="{{ activity.unskilled_idle|default(0) }}" 
+                                                        min="0" max="{{ activity.unskilled_manpower }}" 
+                                                        data-activity-id="{{ activity.id }}"
+                                                        required>
+                                                </div>
+                                                <div class="small text-muted">
+                                                    Available: {{ activity.available_unskilled|default(activity.unskilled_manpower) }}
+                                                </div>
                                             </td>
                                             <td>
                                                 <select class="form-select material-availability" 
@@ -646,7 +681,12 @@
                                                     </li>
                                                     <li class="mb-2">
                                                         <strong>Manpower Cost:</strong>
-                                                        ₹{{ activity.manpower_cost_per_day }}/day
+                                                        <div class="ms-3">
+                                                            <div>Skilled: {{ activity.available_skilled|default(activity.skilled_manpower) }} × ₹{{ activity.skilled_cost_per_day }}/day = ₹{{ (activity.available_skilled|default(activity.skilled_manpower)) * activity.skilled_cost_per_day }}</div>
+                                                            <div>Semi-Skilled: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }} × ₹{{ activity.semi_skilled_cost_per_day }}/day = ₹{{ (activity.available_semi_skilled|default(activity.semi_skilled_manpower)) * activity.semi_skilled_cost_per_day }}</div>
+                                                            <div>Unskilled: {{ activity.available_unskilled|default(activity.unskilled_manpower) }} × ₹{{ activity.unskilled_cost_per_day }}/day = ₹{{ (activity.available_unskilled|default(activity.unskilled_manpower)) * activity.unskilled_cost_per_day }}</div>
+                                                            <div class="fw-bold">Total: ₹{{ activity.manpower_cost_per_day }}/day</div>
+                                                        </div>
                                                     </li>
                                                 </ul>
                                             </div>
@@ -692,6 +732,7 @@
                                         <div class="mt-3">
                                             <h6>Calculation Formula:</h6>
                                             <div class="bg-light p-3 rounded">
+                                                <p class="mb-2">Manpower Cost = (Skilled Workers × ₹{{ activity.skilled_cost_per_day }}/day) + (Semi-Skilled Workers × ₹{{ activity.semi_skilled_cost_per_day }}/day) + (Unskilled Workers × ₹{{ activity.unskilled_cost_per_day }}/day)</p>
                                                 <p class="mb-2">Base Delay Cost = Manpower Cost + Equipment Cost</p>
                                                 {% if activity.is_critical %}
                                                 <p class="mb-0">Total Delay Cost = Base Delay Cost + Full Site Overhead (Always for Critical Path)</p>
@@ -1092,17 +1133,62 @@
 
     // Add this to your existing JavaScript
     document.addEventListener('DOMContentLoaded', function() {
-        // Handle manpower in other site changes
-        document.querySelectorAll('.manpower-other-site').forEach(function(input) {
+        // Handle manpower category changes
+        document.querySelectorAll('.manpower-skilled-idle, .manpower-semi-skilled-idle, .manpower-unskilled-idle').forEach(function(input) {
             input.addEventListener('change', function() {
-                const plannedManpower = parseInt(this.dataset.plannedManpower);
-                const manpowerInOtherSite = parseInt(this.value) || 0;
-                const availableManpower = Math.max(0, plannedManpower - manpowerInOtherSite);
+                const activityId = this.dataset.activityId;
+                const row = this.closest('tr');
+                
+                // Get all manpower inputs for this activity
+                const skilledIdle = parseInt(row.querySelector(`input[name="skilled_idle_${activityId}"]`).value) || 0;
+                const semiSkilledIdle = parseInt(row.querySelector(`input[name="semi_skilled_idle_${activityId}"]`).value) || 0;
+                const unskilledIdle = parseInt(row.querySelector(`input[name="unskilled_idle_${activityId}"]`).value) || 0;
+                
+                // Get planned manpower for each category (you might need to store this in data attributes)
+                const skilledPlanned = parseInt(row.querySelector(`input[name="skilled_idle_${activityId}"]`).max) || 0;
+                const semiSkilledPlanned = parseInt(row.querySelector(`input[name="semi_skilled_idle_${activityId}"]`).max) || 0;
+                const unskilledPlanned = parseInt(row.querySelector(`input[name="unskilled_idle_${activityId}"]`).max) || 0;
+                
+                // Calculate available manpower for each category
+                const availableSkilled = Math.max(0, skilledPlanned - skilledIdle);
+                const availableSemiSkilled = Math.max(0, semiSkilledPlanned - semiSkilledIdle);
+                const availableUnskilled = Math.max(0, unskilledPlanned - unskilledIdle);
+                
+                // Calculate total available manpower
+                const totalAvailableManpower = availableSkilled + availableSemiSkilled + availableUnskilled;
+                const totalPlannedManpower = skilledPlanned + semiSkilledPlanned + unskilledPlanned;
                 
                 // Update the available manpower field
-                const availableManpowerInput = document.querySelector(`input[name="available_manpower_${this.dataset.activityId}"]`);
+                const availableManpowerInput = row.querySelector(`input[name="available_manpower_${activityId}"]`);
                 if (availableManpowerInput) {
-                    availableManpowerInput.value = availableManpower;
+                    availableManpowerInput.value = totalAvailableManpower;
+                }
+                
+                // Update the available manpower display for each category
+                const skilledAvailableDiv = row.querySelector('td:nth-child(4) .small.text-muted');
+                const semiSkilledAvailableDiv = row.querySelector('td:nth-child(5) .small.text-muted');
+                const unskilledAvailableDiv = row.querySelector('td:nth-child(6) .small.text-muted');
+                
+                if (skilledAvailableDiv) {
+                    skilledAvailableDiv.textContent = `Available: ${availableSkilled}`;
+                }
+                if (semiSkilledAvailableDiv) {
+                    semiSkilledAvailableDiv.textContent = `Available: ${availableSemiSkilled}`;
+                }
+                if (unskilledAvailableDiv) {
+                    unskilledAvailableDiv.textContent = `Available: ${availableUnskilled}`;
+                }
+                
+                // Update constraint warning if needed
+                const constraintWarning = row.querySelector('.constraint-warning');
+                if (constraintWarning) {
+                    const shortage = totalPlannedManpower - totalAvailableManpower;
+                    if (shortage > 0) {
+                        constraintWarning.textContent = `⚠️ Manpower shortage: ${shortage} workers needed`;
+                        constraintWarning.style.display = 'block';
+                    } else {
+                        constraintWarning.style.display = 'none';
+                    }
                 }
             });
         });

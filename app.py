@@ -25,23 +25,50 @@ def load_activities():
             reader = csv.DictReader(csvfile)
             for row in reader:
                 try:
-                    # Calculate base delay cost without site overheads
-                    base_delay_cost = int(row["manpower_cost_per_day"]) + int(row["owned_equipment_om_cost_per_day"])
+                    # Load manpower categories with proper error handling
+                    skilled_manpower = int(row.get("skilled_manpower", 0) or 0)
+                    semi_skilled_manpower = int(row.get("semi_skilled_manpower", 0) or 0)
+                    unskilled_manpower = int(row.get("unskilled_manpower", 0) or 0)
                     
-                    # Get site overhead cost
-                    site_overhead = int(row["site_overhead_cost_per_day"]) if "site_overhead_cost_per_day" in row else 0
+                    # Load manpower costs per day for each category with proper error handling
+                    skilled_cost_per_day = int(row.get("skilled_cost_per_day", 300) or 300)
+                    semi_skilled_cost_per_day = int(row.get("semi_skilled_cost_per_day", 200) or 200)
+                    unskilled_cost_per_day = int(row.get("unskilled_cost_per_day", 100) or 100)
+                    
+                    # Calculate total manpower cost per day
+                    total_manpower_cost_per_day = (
+                        skilled_manpower * skilled_cost_per_day +
+                        semi_skilled_manpower * semi_skilled_cost_per_day +
+                        unskilled_manpower * unskilled_cost_per_day
+                    )
+                    
+                    # Calculate base delay cost without site overheads
+                    base_delay_cost = total_manpower_cost_per_day + int(row.get("owned_equipment_om_cost_per_day", 0) or 0)
+                    
+                    # Get site overhead cost with proper error handling
+                    site_overhead = int(row.get("site_overhead_cost_per_day", 0) or 0)
+                    
+                    # Handle dependency_ids with proper error handling
+                    dependency_ids_str = row.get("dependency_ids", "")
+                    dependency_ids = [d.strip() for d in dependency_ids_str.split(',') if d.strip()] if dependency_ids_str else []
                     
                     activities.append({
                         "id": row["id"],
                         "name": row["name"],
                         "duration": int(row["duration"]),
                         "planned_manpower": int(row["planned_manpower"]),
-                        "dependency_ids": [d.strip() for d in row["dependency_ids"].split(',') if d.strip()],
+                        "skilled_manpower": skilled_manpower,
+                        "semi_skilled_manpower": semi_skilled_manpower,
+                        "unskilled_manpower": unskilled_manpower,
+                        "skilled_cost_per_day": skilled_cost_per_day,
+                        "semi_skilled_cost_per_day": semi_skilled_cost_per_day,
+                        "unskilled_cost_per_day": unskilled_cost_per_day,
+                        "dependency_ids": dependency_ids,
                         "start_day": int(row["start_day"]),
-                        "manpower_cost_per_day": int(row["manpower_cost_per_day"]),
-                        "rented_equipment_cost_per_day": int(row["rented_equipment_cost_per_day"]),
-                        "owned_equipment_om_cost_per_day": int(row["owned_equipment_om_cost_per_day"]),
-                        "no_equipment_cost_per_day": int(row["no_equipment_cost_per_day"]),
+                        "manpower_cost_per_day": total_manpower_cost_per_day,
+                        "rented_equipment_cost_per_day": int(row.get("rented_equipment_cost_per_day", 0) or 0),
+                        "owned_equipment_om_cost_per_day": int(row.get("owned_equipment_om_cost_per_day", 0) or 0),
+                        "no_equipment_cost_per_day": int(row.get("no_equipment_cost_per_day", 0) or 0),
                         "site_overhead_cost_per_day": site_overhead,
                         "base_delay_cost_per_day": base_delay_cost,  # Store base delay cost separately
                         "total_delay_cost_per_day": base_delay_cost  # Initialize without site overheads
@@ -306,8 +333,29 @@ def calculate_score(material, equipment, manpower_ratio, delay_cost_per_day, max
             else:
                 equipment_score = 0  # Default to zero score for any other case
 
-        # Calculate manpower score (15%)
-        manpower_score = manpower_ratio * 15
+        # Calculate manpower score (15%) - broken down by worker type
+        # 7% for skilled, 5% for semi-skilled, 3% for unskilled
+        manpower_score = 0
+        if activity:
+            # Calculate individual ratios for each worker type
+            skilled_ratio = 0
+            semi_skilled_ratio = 0
+            unskilled_ratio = 0
+            
+            if activity['skilled_manpower'] > 0:
+                skilled_ratio = min(1.0, activity.get('available_skilled', activity['skilled_manpower']) / activity['skilled_manpower'])
+            
+            if activity['semi_skilled_manpower'] > 0:
+                semi_skilled_ratio = min(1.0, activity.get('available_semi_skilled', activity['semi_skilled_manpower']) / activity['semi_skilled_manpower'])
+            
+            if activity['unskilled_manpower'] > 0:
+                unskilled_ratio = min(1.0, activity.get('available_unskilled', activity['unskilled_manpower']) / activity['unskilled_manpower'])
+            
+            # Calculate weighted score: 7% skilled + 5% semi-skilled + 3% unskilled
+            manpower_score = (skilled_ratio * 7) + (semi_skilled_ratio * 5) + (unskilled_ratio * 3)
+        else:
+            # Fallback to original calculation if no activity details available
+            manpower_score = manpower_ratio * 15
 
         # Calculate material score (10%)
         material_score = material * 10
@@ -743,17 +791,21 @@ def index():
         total_duration = get_total_duration(activities)
         if 'actual_completion_days' not in session:
             session['actual_completion_days'] = {}
+        if 'current_day' not in session:
+            session['current_day'] = 1
         actual_completion_days = session['actual_completion_days']
-        current_day = 1
+        current_day = session['current_day']
 
         # Calculate critical path
         critical_paths, project_duration = get_critical_path(activities)
         
         if request.method == 'POST':
             try:
-                current_day = int(request.form.get('current_day', 1))
+                current_day = int(request.form.get('current_day', current_day))
+                session['current_day'] = current_day
             except ValueError:
-                current_day = 1
+                current_day = session.get('current_day', 1)
+                session['current_day'] = current_day
             
             # Update activity completion status and costs
             for activity in activities:
@@ -764,14 +816,59 @@ def index():
                     elif activity['id'] in actual_completion_days and actual_completion_days[activity['id']] >= current_day:
                         del actual_completion_days[activity['id']]
                 
-                # Calculate actual manpower cost based on available manpower
-                manpower_in_other_site = int(request.form.get(f"manpower_idle_{activity['id']}", 0))
-                available_manpower = activity['planned_manpower'] - manpower_in_other_site
-                manpower_ratio = available_manpower / activity['planned_manpower']
+                # Get updated constraints from form with error handling
+                try:
+                    # Get manpower in other site for each category
+                    skilled_idle = int(request.form.get(f"skilled_idle_{activity['id']}", 0))
+                    semi_skilled_idle = int(request.form.get(f"semi_skilled_idle_{activity['id']}", 0))
+                    unskilled_idle = int(request.form.get(f"unskilled_idle_{activity['id']}", 0))
+                    
+                    # Calculate available manpower for each category
+                    available_skilled = max(0, activity['skilled_manpower'] - skilled_idle)
+                    available_semi_skilled = max(0, activity['semi_skilled_manpower'] - semi_skilled_idle)
+                    available_unskilled = max(0, activity['unskilled_manpower'] - unskilled_idle)
+                    
+                    # Calculate total available manpower
+                    available_manpower = available_skilled + available_semi_skilled + available_unskilled
+                    total_planned_manpower = activity['skilled_manpower'] + activity['semi_skilled_manpower'] + activity['unskilled_manpower']
+                    
+                    # Store manpower details
+                    activity['skilled_idle'] = skilled_idle
+                    activity['semi_skilled_idle'] = semi_skilled_idle
+                    activity['unskilled_idle'] = unskilled_idle
+                    activity['available_skilled'] = available_skilled
+                    activity['available_semi_skilled'] = available_semi_skilled
+                    activity['available_unskilled'] = available_unskilled
+                    activity['available_manpower'] = available_manpower
+                except (ValueError, TypeError):
+                    # Set default values if there's an error
+                    activity['skilled_idle'] = 0
+                    activity['semi_skilled_idle'] = 0
+                    activity['unskilled_idle'] = 0
+                    activity['available_skilled'] = activity['skilled_manpower']
+                    activity['available_semi_skilled'] = activity['semi_skilled_manpower']
+                    activity['available_unskilled'] = activity['unskilled_manpower']
+                    activity['available_manpower'] = activity['planned_manpower']
+                
+                # Calculate actual manpower cost based on available workers in each category
+                actual_manpower_cost_per_day = (
+                    available_skilled * activity['skilled_cost_per_day'] +
+                    available_semi_skilled * activity['semi_skilled_cost_per_day'] +
+                    available_unskilled * activity['unskilled_cost_per_day']
+                )
+                
+                # Store manpower details
+                activity['skilled_idle'] = skilled_idle
+                activity['semi_skilled_idle'] = semi_skilled_idle
+                activity['unskilled_idle'] = unskilled_idle
+                activity['available_skilled'] = available_skilled
+                activity['available_semi_skilled'] = available_semi_skilled
+                activity['available_unskilled'] = available_unskilled
+                activity['available_manpower'] = available_manpower
                 
                 # Store both original and actual manpower costs
                 activity['original_manpower_cost_per_day'] = activity['manpower_cost_per_day']
-                activity['actual_manpower_cost_per_day'] = round(activity['manpower_cost_per_day'] * manpower_ratio, 2)
+                activity['actual_manpower_cost_per_day'] = round(actual_manpower_cost_per_day, 2)
                 activity['manpower_cost_per_day'] = activity['actual_manpower_cost_per_day']  # Update for display
                 
                 # Get equipment type and cost
@@ -796,6 +893,9 @@ def index():
             # Update delay costs based on critical path status and project extension
             update_activity_delay_costs(activities, critical_paths, current_day)
 
+            # Before creating summary, ensure all_activities have float values
+            activities = get_float_values(activities)
+
             summary = []
             for activity in activities:
                 status = get_status(activity['id'], actual_completion_days, current_day)
@@ -812,14 +912,34 @@ def index():
                 actual_cost = planned_cost
                 delay_cost = 0
                 if actual_finish is not None:
+                    # Calculate actual duration based on dependencies and early completion
+                    actual_start = activity['start_day']
+                    if activity['dependency_ids']:
+                        dep_days = []
+                        for dep in activity['dependency_ids']:
+                            if dep in actual_completion_days:
+                                dep_days.append(actual_completion_days[dep])
+                        if dep_days:
+                            actual_start = max(max(dep_days) + 1, activity['start_day'])
+                    
+                    # Calculate actual duration
+                    actual_duration = actual_finish - actual_start + 1
+                    
+                    # Calculate delay days
                     delay_days = max(0, actual_finish - planned_finish)
+                    
                     # Check if activity has free float and is within it
                     free_float = activity.get('free_float', 0)
                     remaining_free_float = max(0, free_float - delay_days) if delay_days > 0 else free_float
                     activity['remaining_free_float'] = remaining_free_float
                     
-                    # Calculate costs based on free float
-                    if free_float > 0 and delay_days <= free_float:
+                    # Calculate costs based on actual duration
+                    if actual_duration < activity['duration']:
+                        # Early completion - reduced cost
+                        actual_cost = actual_duration * per_day_cost
+                        delay_cost = 0
+                        activity['is_within_free_float'] = True
+                    elif free_float > 0 and delay_days <= free_float:
                         # If within free float, no cost overrun
                         actual_cost = planned_cost
                         delay_cost = 0
@@ -865,16 +985,39 @@ def index():
                 
                 # Get updated constraints from form with error handling
                 try:
-                    # First get manpower in other site
-                    manpower_in_other_site = int(request.form.get(f"manpower_idle_{activity['id']}", 0))
-                    activity['manpower_in_other_site'] = manpower_in_other_site
+                    # Get manpower in other site for each category
+                    skilled_idle = int(request.form.get(f"skilled_idle_{activity['id']}", 0))
+                    semi_skilled_idle = int(request.form.get(f"semi_skilled_idle_{activity['id']}", 0))
+                    unskilled_idle = int(request.form.get(f"unskilled_idle_{activity['id']}", 0))
                     
-                    # Then calculate available manpower based on planned manpower and manpower in other site
-                    available_manpower = activity['planned_manpower'] - manpower_in_other_site
-                    activity['available_manpower'] = max(0, available_manpower)  # Ensure it doesn't go below 0
+                    # Calculate available manpower for each category
+                    available_skilled = max(0, activity['skilled_manpower'] - skilled_idle)
+                    available_semi_skilled = max(0, activity['semi_skilled_manpower'] - semi_skilled_idle)
+                    available_unskilled = max(0, activity['unskilled_manpower'] - unskilled_idle)
+                    
+                    # Calculate total available manpower
+                    available_manpower = available_skilled + available_semi_skilled + available_unskilled
+                    total_planned_manpower = activity['skilled_manpower'] + activity['semi_skilled_manpower'] + activity['unskilled_manpower']
+                    
+                    # Store manpower details
+                    activity['skilled_idle'] = skilled_idle
+                    activity['semi_skilled_idle'] = semi_skilled_idle
+                    activity['unskilled_idle'] = unskilled_idle
+                    activity['available_skilled'] = available_skilled
+                    activity['available_semi_skilled'] = available_semi_skilled
+                    activity['available_unskilled'] = available_unskilled
+                    activity['available_manpower'] = available_manpower
                 except (ValueError, TypeError):
-                    activity['manpower_in_other_site'] = 0
+                    # Set default values if there's an error
+                    activity['skilled_idle'] = 0
+                    activity['semi_skilled_idle'] = 0
+                    activity['unskilled_idle'] = 0
+                    activity['available_skilled'] = activity['skilled_manpower']
+                    activity['available_semi_skilled'] = activity['semi_skilled_manpower']
+                    activity['available_unskilled'] = activity['unskilled_manpower']
                     activity['available_manpower'] = activity['planned_manpower']
+                    activity['material'] = 1.0  # Default to 100% available
+                    activity['equipment'] = True
                     
                 try:
                     # Handle material availability
@@ -897,7 +1040,8 @@ def index():
                 activity['equipment_type'] = request.form.get(f"equipment_type_{activity['id']}", 'owned')
                 
                 # Calculate manpower ratio
-                manpower_ratio = min(1.0, activity['available_manpower'] / activity['planned_manpower']) if activity['planned_manpower'] > 0 else 0
+                total_planned_manpower = activity['skilled_manpower'] + activity['semi_skilled_manpower'] + activity['unskilled_manpower']
+                manpower_ratio = min(1.0, activity['available_manpower'] / total_planned_manpower) if total_planned_manpower > 0 else 0
                 
                 # Calculate delay cost for this activity
                 if not is_first_in_parallel:
@@ -972,9 +1116,6 @@ def index():
             cpm_mermaid = build_cpm_mermaid(activities)
             daywise_costs = build_daywise_costs(activities, summary, total_duration)
 
-            # Before rendering the template, ensure all_activities have float values
-            activities = get_float_values(activities)
-
             # --- FINAL: Delay score based on base_delay_cost_per_day in parallel group (user requirement, no zeroing for first activity) ---
             for activity in ready_activities:
                 if 'sequence_options' in activity:
@@ -1011,9 +1152,7 @@ def index():
                                    critical_paths=critical_paths, project_duration=project_duration)
 
         else:
-            session['actual_completion_days'] = {}
-            actual_completion_days = {}
-            current_day = 1
+            # Don't reset session data on GET request, maintain current state
             ready_activities = get_ready_activities(activities, actual_completion_days, current_day)
             
             # Find best sequence for parallel activities
@@ -1027,13 +1166,19 @@ def index():
                 activity['is_first_in_parallel'] = is_first_in_parallel
                 
                 # Set default values
-                activity['manpower_in_other_site'] = 0
+                activity['skilled_idle'] = 0
+                activity['semi_skilled_idle'] = 0
+                activity['unskilled_idle'] = 0
+                activity['available_skilled'] = activity['skilled_manpower']
+                activity['available_semi_skilled'] = activity['semi_skilled_manpower']
+                activity['available_unskilled'] = activity['unskilled_manpower']
                 activity['available_manpower'] = activity['planned_manpower']
                 activity['material'] = 1.0  # Default to 100% available
                 activity['equipment'] = True
                 
                 # Calculate manpower ratio
-                manpower_ratio = 1.0  # Default to 100% for initial load
+                total_planned_manpower = activity['skilled_manpower'] + activity['semi_skilled_manpower'] + activity['unskilled_manpower']
+                manpower_ratio = min(1.0, activity['available_manpower'] / total_planned_manpower) if total_planned_manpower > 0 else 0
                 
                 # Calculate delay cost for this activity
                 if not is_first_in_parallel:
@@ -1099,6 +1244,9 @@ def index():
             ready_activities.sort(key=lambda x: x.get('total_score', 0), reverse=True)
             prev_ready_ids = ','.join([a['id'] for a in ready_activities])
 
+            # Before creating summary, ensure all_activities have float values
+            activities = get_float_values(activities)
+
             summary = []
             for activity in activities:
                 status = get_status(activity['id'], actual_completion_days, current_day)
@@ -1115,14 +1263,34 @@ def index():
                 actual_cost = planned_cost
                 delay_cost = 0
                 if actual_finish is not None:
+                    # Calculate actual duration based on dependencies and early completion
+                    actual_start = activity['start_day']
+                    if activity['dependency_ids']:
+                        dep_days = []
+                        for dep in activity['dependency_ids']:
+                            if dep in actual_completion_days:
+                                dep_days.append(actual_completion_days[dep])
+                        if dep_days:
+                            actual_start = max(max(dep_days) + 1, activity['start_day'])
+                    
+                    # Calculate actual duration
+                    actual_duration = actual_finish - actual_start + 1
+                    
+                    # Calculate delay days
                     delay_days = max(0, actual_finish - planned_finish)
+                    
                     # Check if activity has free float and is within it
                     free_float = activity.get('free_float', 0)
                     remaining_free_float = max(0, free_float - delay_days) if delay_days > 0 else free_float
                     activity['remaining_free_float'] = remaining_free_float
                     
-                    # Calculate costs based on free float
-                    if free_float > 0 and delay_days <= free_float:
+                    # Calculate costs based on actual duration
+                    if actual_duration < activity['duration']:
+                        # Early completion - reduced cost
+                        actual_cost = actual_duration * per_day_cost
+                        delay_cost = 0
+                        activity['is_within_free_float'] = True
+                    elif free_float > 0 and delay_days <= free_float:
                         # If within free float, no cost overrun
                         actual_cost = planned_cost
                         delay_cost = 0
@@ -1154,9 +1322,6 @@ def index():
 
             cpm_mermaid = build_cpm_mermaid(activities)
             daywise_costs = build_daywise_costs(activities, summary, total_duration)
-
-            # Before rendering the template, ensure all_activities have float values
-            activities = get_float_values(activities)
 
             # --- FINAL: Delay score based on base_delay_cost_per_day in parallel group (user requirement, no zeroing for first activity) ---
             for activity in ready_activities:
