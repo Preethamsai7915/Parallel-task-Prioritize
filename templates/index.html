@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Construction Dashboard</title>
+    <title>50-Floor Residential Project Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -18,6 +18,11 @@
             }
         });
     </script>
+    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <link href="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.css" rel="stylesheet" type="text/css" />
+    <!-- Add GoJS CDN for network visualization -->
+    <script src="https://unpkg.com/gojs/release/go.js"></script>
     <style>
         body {
             background: url('https://asbl.in/wp-content/uploads/2022/09/ASBL-Spectra-1.jpg') no-repeat center center fixed;
@@ -73,13 +78,19 @@
             background: #1976d2 !important;
             color: #fff !important;
         }
-        .sidebar-section { display: none; }
-        .sidebar-section.active { display: block; }
+        .sidebar-section {
+            display: none;
+        }
+        .sidebar-section.active {
+            display: block;
+        }
         #cpm-mermaid {
             background: #fff;
             padding: 20px;
             border-radius: 12px;
             overflow-x: auto;
+            min-width: 1200px;
+            max-width: 100%;
         }
         .mermaid {
             font-family: 'Montserrat', Arial, sans-serif;
@@ -257,6 +268,189 @@
             width: 100px;
             text-align: center;
         }
+        .critical-path-timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .timeline-marker {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+            flex-shrink: 0;
+            font-size: 16px;
+            color: white;
+        }
+        .timeline-marker.start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .timeline-marker.end {
+            background: linear-gradient(135deg, #dc3545, #e74c3c);
+        }
+        .timeline-marker.critical {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+        }
+        .timeline-content {
+            flex: 1;
+        }
+        .timeline-arrow {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 20px;
+        }
+        .stat-item {
+            padding: 10px;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+        }
+        .critical-path-horizontal {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        .path-start, .path-end {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .path-activity {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            min-width: 120px;
+        }
+        .activity-marker {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .activity-marker.start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .activity-marker.end {
+            background: linear-gradient(135deg, #dc3545, #e74c3c);
+        }
+        .activity-marker.critical {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+        }
+        .activity-connector {
+            color: #dc3545;
+            font-size: 20px;
+            margin: 0 10px;
+        }
+        .activity-id {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .activity-info {
+            text-align: center;
+        }
+        .activity-name {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 2px;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .activity-duration {
+            font-size: 11px;
+            color: #999;
+            font-weight: bold;
+        }
+        .activity-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: bold;
+        }
+        .submenu {
+            margin-left: 20px;
+            margin-top: 10px;
+            border-left: 2px solid rgba(255,255,255,0.2);
+            padding-left: 15px;
+        }
+        .submenu .nav-link {
+            font-size: 0.9rem;
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        .submenu .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff !important;
+        }
+        .submenu .nav-link.active {
+            background: rgba(255,255,255,0.2);
+            color: #fff !important;
+        }
+        .main-nav-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .submenu-icon {
+            transition: transform 0.3s ease;
+        }
+        .submenu-icon.rotated {
+            transform: rotate(180deg);
+        }
+        .main-nav-item.active {
+            background: rgba(255,255,255,0.2) !important;
+        }
+        .subsection {
+            display: none;
+        }
+        .subsection.active {
+            display: block;
+        }
+        .section-header {
+            background: #e3f2fd;
+            color: #212529;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 18px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -264,25 +458,99 @@
     <nav id="sidebar" class="bg-gradient-primary flex-shrink-0 p-3">
         <h3 class="text-white mb-4">🏗️ Project Menu</h3>
         <ul class="nav nav-pills flex-column mb-auto" id="sidebar-nav">
+            <!-- Project Overview Section -->
             <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white active" data-section="dashboard" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
-                    Project Overview
+                <a href="#" class="nav-link text-white main-nav-item" data-section="dashboard" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    <i class="fas fa-tachometer-alt me-2"></i>Project Overview
+                    <i class="fas fa-chevron-down ms-auto submenu-icon"></i>
                 </a>
+                <ul class="submenu" style="display: none;">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="dashboard" data-subsection="overview">
+                            <i class="fas fa-chart-bar me-2"></i>Dashboard & Activities
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="dashboard" data-subsection="completed">
+                            <i class="fas fa-check-circle me-2"></i>Mark Completed
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="dashboard" data-subsection="all-activities">
+                            <i class="fas fa-list me-2"></i>All Activities Overview
+                        </a>
+                    </li>
+                </ul>
             </li>
+            
+            <!-- CPM Schedule Section -->
             <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white" data-section="cpm" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
-                    CPM Schedule
+                <a href="#" class="nav-link text-white main-nav-item" data-section="cpm" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    <i class="fas fa-project-diagram me-2"></i>CPM Schedule
+                    <i class="fas fa-chevron-down ms-auto submenu-icon"></i>
                 </a>
+                <ul class="submenu" style="display: none;">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cpm" data-subsection="flowchart">
+                            <i class="fas fa-sitemap me-2"></i>Project Flowchart
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cpm" data-subsection="critical-path">
+                            <i class="fas fa-route me-2"></i>Critical Path
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cpm" data-subsection="float-analysis">
+                            <i class="fas fa-clock me-2"></i>Float Analysis
+                        </a>
+                    </li>
+                </ul>
             </li>
+            
+            <!-- Cost Analysis Section -->
             <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white" data-section="cost-analysis" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
-                    Cost Analysis
+                <a href="#" class="nav-link text-white main-nav-item" data-section="cost-analysis" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    <i class="fas fa-chart-line me-2"></i>Cost Analysis
+                    <i class="fas fa-chevron-down ms-auto submenu-icon"></i>
                 </a>
+                <ul class="submenu" style="display: none;">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cost-analysis" data-subsection="overview">
+                            <i class="fas fa-chart-pie me-2"></i>Cost Overview
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cost-analysis" data-subsection="overrun">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Cost Overrun
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="cost-analysis" data-subsection="details">
+                            <i class="fas fa-table me-2"></i>Cost Details
+                        </a>
+                    </li>
+                </ul>
             </li>
+            
+            <!-- Settings Section -->
             <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white" data-section="settings" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
-                    Settings
+                <a href="#" class="nav-link text-white main-nav-item" data-section="settings" style="font-size: 1.1rem; background: rgba(255,255,255,0.08); border-radius: 8px;">
+                    <i class="fas fa-cog me-2"></i>Settings
+                    <i class="fas fa-chevron-down ms-auto submenu-icon"></i>
                 </a>
+                <ul class="submenu" style="display: none;">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="settings" data-subsection="project-info">
+                            <i class="fas fa-info-circle me-2"></i>Project Information
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link text-white-50 sub-nav-item" data-section="settings" data-subsection="phases">
+                            <i class="fas fa-layer-group me-2"></i>Project Phases
+                        </a>
+                    </li>
+                </ul>
             </li>
         </ul>
         <hr class="text-white">
@@ -291,147 +559,439 @@
     <div class="dashboard-bg flex-grow-1">
         <!-- DASHBOARD SECTION -->
         <div id="dashboard-section" class="sidebar-section active">
-            <h2 class="mb-4 text-center">🏙️ Construction Project Prioritization Dashboard</h2>
-            <form method="post">
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <label for="current_day" class="form-label"><b>Project Day:</b></label>
-                        <input type="number" class="form-control" name="current_day" id="current_day" value="{{ current_day }}" min="1" max="{{ total_duration }}" required>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Go to Day</button>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end justify-content-end">
-                        <span class="fs-5"><b>Total Project Duration:</b> {{ critical_paths[0]|sum(attribute='duration') if critical_paths else 0 }} days</span>
-                    </div>
+            <!-- Dashboard Overview Subsection -->
+            <div id="dashboard-overview" class="subsection active">
+                <h2 class="mb-4 text-center">🏙️ Parallel Activity Prioritization</h2>
+                <div class="alert alert-info mb-4">
+                    <h5><i class="fas fa-info-circle me-2"></i>Project Overview</h5>
+                    <p class="mb-2"><strong>Project Type:</strong> 50-Floor Residential Tower with 4 Basements</p>
+                    <p class="mb-2"><strong>Total Activities:</strong> 110 construction activities across all phases</p>
+                    <p class="mb-2"><strong>Phases:</strong> Foundation → 4 Basements → Ground Floor → 50 Floors → Roof → MEP → Finishing → Handover</p>
                 </div>
-                <input type="hidden" name="prev_ready" value="{{ prev_ready }}">
 
-                <div class="row">
-                    <div class="col-lg-6">
-                        <div class="card-table">
-                            <h4>All Activities Overview</h4>
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-striped align-middle summary-table">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Activity</th>
-                                            <th>Duration</th>
-                                            <th>Dependencies</th>
-                                            <th>Status</th>
-                                            <th>Actual Completion Day</th>
-                                            <th>Planned Finish Day</th>
-                                            <th>Delay Days</th>
-                                            <th>Planned Cost (₹)</th>
-                                            <th>Actual Cost (₹)</th>
-                                            <th>Delay Cost (₹)</th>
-                                            <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
-                                            <th>Float</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    {% for activity in summary %}
-                                        <tr>
-                                            <td>{{ activity.id }}</td>
-                                            <td>{{ activity.name }}</td>
-                                            <td>{{ activity.duration }}</td>
-                                            <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
-                                            <td>
-                                                {% if activity.status == "Completed" %}
-                                                    <span class="status-completed">Completed</span>
-                                                {% elif activity.status == "Completed Today" %}
-                                                    <span class="status-inprogress">Completed Today</span>
-                                                {% else %}
-                                                    <span class="status-pending">Pending</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ activity.actual_completion_day }}</td>
-                                            <td>{{ activity.planned_finish_day }}</td>
-                                            <td>{{ activity.delay_days }}</td>
-                                            <td>₹{{ activity.planned_cost }}</td>
-                                            <td>
-                                                {% if activity.actual_cost > activity.planned_cost %}
-                                                    <span class="text-danger fw-bold">₹{{ activity.actual_cost }}</span>
-                                                {% else %}
-                                                    ₹{{ activity.actual_cost }}
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if activity.delay_cost > 0 %}
-                                                    <span class="text-danger fw-bold">₹{{ activity.delay_cost }}</span>
-                                                {% else %}
-                                                    ₹0
-                                                {% endif %}
-                                            </td>
-                                            <td style="background:#e3f2fd;">₹{{ activity.total_delay_cost_per_day if activity.total_delay_cost_per_day else '-' }}</td>
-                                            <td>
-                                                {% if activity.total_float > 0 or activity.free_float > 0 %}
-                                                    {% if activity.free_float > 0 %}
-                                                        {% set remaining_free_float = activity.free_float - activity.delay_days if activity.delay_days > 0 else activity.free_float %}
-                                                        <span class="badge bg-success" style="font-size: 1.1rem; padding: 8px 12px;">
-                                                            <i class="fas fa-clock me-1"></i>
-                                                            Free Float: {{ remaining_free_float }} days remaining
-                                                        </span>
-                                                        {% if activity.delay_days > 0 %}
-                                                            <div class="text-success mt-1">
-                                                                <small><i class="fas fa-info-circle me-1"></i>No cost overrun during free float period</small>
-                                                            </div>
-                                                        {% endif %}
-                                                    {% endif %}
-                                                    {% if activity.total_float > 0 %}
-                                                        <span class="badge bg-warning mt-2" style="font-size: 1.1rem; padding: 8px 12px;">
-                                                            <i class="fas fa-hourglass-half me-1"></i>
-                                                            Total Float: {{ activity.total_float }} days
-                                                        </span>
-                                                    {% endif %}
-                                                {% else %}
-                                                    <span class="badge bg-danger" style="font-size: 1.1rem; padding: 8px 12px;">
-                                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                                        No Float
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                    </tbody>
-                                </table>
+                <!-- Available Activities Section -->
+                <div class="card-table mb-4">
+                    <h4 class="section-header"><i class="fas fa-tasks me-2"></i>Available Activities for {{ current_date }} (Day {{ current_day }})</h4>
+                    <form method="post">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="current_date" class="form-label"><b>Project Date:</b></label>
+                                <input type="date" class="form-control" name="current_date" id="current_date" 
+                                       value="{{ current_date }}" 
+                                       min="2025-07-01" 
+                                       max="2027-12-31" 
+                                       required>
+                                <small class="text-muted">Select a date to view activities for that project day</small>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Go to Date</button>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end justify-content-end">
+                                <div class="text-end">
+                                    <div class="fs-5"><b>Project Day:</b> {{ current_day }}</div>
+                                    <div class="fs-6 text-muted"><b>Total Duration:</b> {{ critical_paths[0]|sum(attribute='duration') if critical_paths else 0 }} days</div>
+                                    <div class="fs-6 text-muted"><b>Project End:</b> {{ project_day_to_date(critical_paths[0]|sum(attribute='duration') if critical_paths else 0) }}</div>
+                                </div>
                             </div>
                         </div>
+                        <input type="hidden" name="prev_ready" value="{{ prev_ready }}">
+                        {% if no_activities_message %}
+                            <div class="alert alert-warning text-center my-4">
+                                <i class="fas fa-info-circle me-2"></i>{{ no_activities_message }}
+                            </div>
+                        {% endif %}
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Activity</th>
+                                                <th>Planned Manpower</th>
+                                                <th>Available Manpower</th>
+                                                <th>Skilled (₹{{ activities[0].skilled_cost_per_day if activities else 300 }}/day)</th>
+                                                <th>Semi-Skilled (₹{{ activities[0].semi_skilled_cost_per_day if activities else 200 }}/day)</th>
+                                                <th>Unskilled (₹{{ activities[0].unskilled_cost_per_day if activities else 100 }}/day)</th>
+                                                <th>Material Availability</th>
+                                                <th>Equipment Avail.</th>
+                                                <th>Planned Cost (₹)</th>
+                                                <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                                <th>Sequence Position</th>
+                                                <th>Total Score</th>
+                                                <th>Score Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for activity in activities %}
+                                            <tr>
+                                                <td>{{ activity.name }}</td>
+                                                <td>
+                                                    <div class="small">
+                                                        <div>Skilled: {{ activity.skilled_manpower }}</div>
+                                                        <div>Semi-Skilled: {{ activity.semi_skilled_manpower }}</div>
+                                                        <div>Unskilled: {{ activity.unskilled_manpower }}</div>
+                                                        <div class="fw-bold">Total: {{ activity.planned_manpower }}</div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="form-control" name="available_manpower_{{ activity.id }}" 
+                                                        value="{{ activity.available_manpower }}" readonly>
+                                                    {% if activity.available_manpower < activity.planned_manpower %}
+                                                    <div class="constraint-warning">
+                                                        ⚠️ Manpower shortage: {{ activity.planned_manpower - activity.available_manpower }} workers needed
+                                                    </div>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="mb-2">
+                                                        <label class="form-label small">Idle:</label>
+                                                        <input type="number" class="form-control form-control-sm manpower-skilled-idle" 
+                                                            name="skilled_idle_{{ activity.id }}" 
+                                                            value="{{ activity.skilled_idle|default(0) }}" 
+                                                            min="0" max="{{ activity.skilled_manpower }}" 
+                                                            data-activity-id="{{ activity.id }}"
+                                                            required>
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Available: {{ activity.available_skilled|default(activity.skilled_manpower) }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="mb-2">
+                                                        <label class="form-label small">Idle:</label>
+                                                        <input type="number" class="form-control form-control-sm manpower-semi-skilled-idle" 
+                                                            name="semi_skilled_idle_{{ activity.id }}" 
+                                                            value="{{ activity.semi_skilled_idle|default(0) }}" 
+                                                            min="0" max="{{ activity.semi_skilled_manpower }}" 
+                                                            data-activity-id="{{ activity.id }}"
+                                                            required>
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Available: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="mb-2">
+                                                        <label class="form-label small">Idle:</label>
+                                                        <input type="number" class="form-control form-control-sm manpower-unskilled-idle" 
+                                                            name="unskilled_idle_{{ activity.id }}" 
+                                                            value="{{ activity.unskilled_idle|default(0) }}" 
+                                                            min="0" max="{{ activity.unskilled_manpower }}" 
+                                                            data-activity-id="{{ activity.id }}"
+                                                            required>
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Available: {{ activity.available_unskilled|default(activity.unskilled_manpower) }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <select class="form-select material-availability" 
+                                                        name="material_type_{{ activity.id }}" 
+                                                        data-activity-id="{{ activity.id }}"
+                                                        required>
+                                                        <option value="100" {% if activity.material == 1.0 %}selected{% endif %}>100% Available</option>
+                                                        <option value="custom" {% if activity.material != 1.0 and activity.material != 0 %}selected{% endif %}>Custom Percentage</option>
+                                                        <option value="0" {% if activity.material == 0 %}selected{% endif %}>Not Available</option>
+                                                    </select>
+                                                    <div class="material-percentage mt-2" style="display: {% if activity.material != 1.0 and activity.material != 0 %}block{% else %}none{% endif %};">
+                                                        <input type="number" class="form-control" 
+                                                            name="material_percentage_{{ activity.id }}" 
+                                                            value="{{ (activity.material * 100)|round }}" 
+                                                            min="0" max="100" step="1"
+                                                            placeholder="Enter percentage">
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <select class="form-select" name="equipment_type_{{ activity.id }}">
+                                                        <option value="owned" {% if activity.equipment_type == 'owned' %}selected{% endif %}>Owned (₹{{ activity.owned_equipment_om_cost_per_day }}/day)</option>
+                                                        <option value="rented" {% if activity.equipment_type == 'rented' %}selected{% endif %}>Rented (₹{{ activity.rented_equipment_cost_per_day }}/day)</option>
+                                                        <option value="no_equipment" {% if activity.equipment_type == 'no_equipment' %}selected{% endif %}>No Equipment (₹0/day)</option>
+                                                    </select>
+                                                </td>
+                                                <td>₹{{ activity.planned_cost }}</td>
+                                                <td style="background:#e3f2fd;">₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
+                                                <td>
+                                                    {% if activity.is_first_in_parallel %}
+                                                        <span class="badge bg-success">First in Sequence</span>
+                                                    {% else %}
+                                                        <span class="badge bg-info">Later in Sequence</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="fw-bold {% if activity.is_first_in_parallel %}text-success{% endif %}">
+                                                        {{ activity.total_score }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
+                                                        View Details
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="d-grid gap-2 mt-3">
+                                    <button type="submit" class="btn btn-success btn-lg">Update & Prioritize</button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Prioritized Activities Section -->
+                {% if updated %}
+                <div class="card-table mb-4">
+                    <h4 class="section-header"><i class="fas fa-sort-amount-up me-2"></i>Prioritized Activities (Highest Priority First)</h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Activity</th>
+                                    <th style="background: #42a5f5; color: white;">Total Score</th>
+                                    <th>Score Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for activity in activities %}
+                                <tr {% if loop.index0 == 0 %}class="highlight"{% endif %}>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ activity.name }}</td>
+                                    <td style="background: #e3f2fd; font-weight: bold; font-size: 1.1rem;">{{ activity.total_score }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="col-lg-6">
-                        <div class="card-table">
-                            <h4>Mark Completed Activities</h4>
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-striped align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th>Complete?</th>
-                                            <th>Activity</th>
-                                            <th>Dependencies</th>
-                                            <th>Actual Completion Day</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    {% for activity in all_activities %}
-                                        <tr>
-                                            <td>
-                                                <input type="checkbox" name="complete_{{ activity.id }}"
-                                                    {% if actual_completion_days.get(activity.id, 0) and current_day > actual_completion_days[activity.id] %}checked{% endif %}>
-                                            </td>
-                                            <td>{{ activity.name }}</td>
-                                            <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
-                                            <td>
-                                                {% if actual_completion_days.get(activity.id) %}
-                                                    {{ actual_completion_days[activity.id] }}
-                                                {% else %}
-                                                    -
+                    <p class="fs-5"><b>Top Priority Activity:</b> {{ activities[0].name if activities else 'None' }}</p>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-4">
+                    <h5><i class="fas fa-info-circle me-2"></i>No Prioritized Activities Yet</h5>
+                    <p class="mb-0">Please fill in the activity details above and click "Update & Prioritize" to see the prioritized list.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Mark Completed Activities Subsection -->
+            <div id="dashboard-completed" class="subsection">
+                <h2 class="mb-4 text-center">✅ Mark Completed Activities</h2>
+                
+                <!-- Confirmation Button -->
+                <div class="d-flex justify-content-end mb-3">
+                    <button type="button" class="btn btn-success btn-lg" onclick="confirmCompletions()">
+                        <i class="fas fa-check-circle me-2"></i>Confirm Completions
+                    </button>
+                </div>
+                
+                <div class="card-table">
+                    <h4>Mark Completed Activities</h4>
+                    <p class="text-muted mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Check the activities you want to mark as completed, then click "Confirm Completions" to apply the changes.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Complete?</th>
+                                    <th>Activity</th>
+                                    <th>Dependencies</th>
+                                    <th>Actual Completion Day</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for activity in all_activities %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" name="complete_{{ activity.id }}" id="complete_{{ activity.id }}"
+                                            {% if actual_completion_days.get(activity.id, 0) and current_day > actual_completion_days[activity.id] %}checked{% endif %}>
+                                    </td>
+                                    <td>{{ activity.name }}</td>
+                                    <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
+                                    <td>
+                                        {% if actual_completion_days.get(activity.id) %}
+                                            {{ actual_completion_days[activity.id] }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Activities Overview Subsection -->
+            <div id="dashboard-all-activities" class="subsection">
+                <h2 class="mb-4 text-center">📋 All Activities Overview</h2>
+                <div class="card-table">
+                    <h4>All Activities Overview</h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped align-middle summary-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Activity</th>
+                                    <th>Duration</th>
+                                    <th>Dependencies</th>
+                                    <th>Status</th>
+                                    <th>Planned Start</th>
+                                    <th>Planned End</th>
+                                    <th>Actual Start</th>
+                                    <th>Actual End</th>
+                                    <th>Delay Days</th>
+                                    <th>Planned Cost (₹)</th>
+                                    <th>Actual Cost (₹)</th>
+                                    <th>Delay Cost (₹)</th>
+                                    <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
+                                    <th>Float</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for activity in summary %}
+                                <tr>
+                                    <td>{{ activity.id }}</td>
+                                    <td>{{ activity.name }}</td>
+                                    <td>{{ activity.duration }}</td>
+                                    <td>{% if activity.dependency_ids %}{{ activity.dependency_ids|join(', ') }}{% else %}-{% endif %}</td>
+                                    <td>
+                                        {% if activity.status == "Completed" %}
+                                            <span class="status-completed">Completed</span>
+                                        {% elif activity.status == "Completed Today" %}
+                                            <span class="status-inprogress">Completed Today</span>
+                                        {% else %}
+                                            <span class="status-pending">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ activity.planned_start_date }}</td>
+                                    <td>{{ activity.planned_end_date }}</td>
+                                    <td>{{ activity.actual_start_date if activity.actual_start_date else '-' }}</td>
+                                    <td>{{ activity.actual_end_date if activity.actual_end_date else '-' }}</td>
+                                    <td>{{ activity.delay_days }}</td>
+                                    <td>₹{{ activity.planned_cost }}</td>
+                                    <td>
+                                        {% if activity.actual_cost > activity.planned_cost %}
+                                            <span class="text-danger fw-bold">₹{{ activity.actual_cost }}</span>
+                                        {% else %}
+                                            ₹{{ activity.actual_cost }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if activity.delay_cost > 0 %}
+                                            <span class="text-danger fw-bold">₹{{ activity.delay_cost }}</span>
+                                        {% else %}
+                                            ₹0
+                                        {% endif %}
+                                    </td>
+                                    <td style="background:#e3f2fd;">₹{{ activity.total_delay_cost_per_day if activity.total_delay_cost_per_day else '-' }}</td>
+                                    <td>
+                                        {% if activity.total_float > 0 or activity.free_float > 0 %}
+                                            {% if activity.free_float > 0 %}
+                                                {% set remaining_free_float = activity.free_float - activity.delay_days if activity.delay_days > 0 else activity.free_float %}
+                                                <span class="badge bg-success" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Free Float: {{ remaining_free_float }} days remaining
+                                                </span>
+                                                {% if activity.delay_days > 0 %}
+                                                    <div class="text-success mt-1">
+                                                        <small><i class="fas fa-info-circle me-1"></i>No cost overrun during free float period</small>
+                                                    </div>
                                                 {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                    </tbody>
-                                </table>
+                                            {% endif %}
+                                            {% if activity.total_float > 0 %}
+                                                <span class="badge bg-warning mt-2" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                    <i class="fas fa-hourglass-half me-1"></i>
+                                                    Total Float: {{ activity.total_float }} days
+                                                </span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-danger" style="font-size: 1.1rem; padding: 8px 12px;">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                                No Float
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CPM SCHEDULE SECTION -->
+        <div id="cpm-section" class="sidebar-section">
+            <!-- Project Flowchart Subsection -->
+            <div id="cpm-flowchart" class="subsection active">
+                <h2 class="mb-4 text-center">🗺️ 50-Floor Project CPM Schedule (Flowchart)</h2>
+                <div class="alert alert-warning mb-4">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Large Project Notice</h6>
+                    <p class="mb-0">This project contains 110 activities across multiple phases. The flowchart is organized by construction phases for better visualization.</p>
+                </div>
+                <div class="card-table">
+                    <div id="cpm-gojs" style="width:100%; min-width:1200px; height:700px; background:#fff; border-radius:12px; overflow:auto;"></div>
+                </div>
+                <div id="activity-details" style="display:none; margin-top:24px;"></div>
+            </div>
+
+            <!-- Critical Path Analysis Subsection -->
+            <div id="cpm-critical-path" class="subsection">
+                <h2 class="mb-4 text-center">🚀 Critical Path Analysis</h2>
+                {% if critical_paths and critical_paths[0] %}
+                <!-- Horizontal Critical Path Sequence -->
+                <div class="card mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-route me-2"></i>Critical Path Sequence (Horizontal View)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="critical-path-horizontal">
+                            <div class="path-start">
+                                <div class="activity-marker start">
+                                    <i class="fas fa-play"></i>
+                                </div>
+                                <div class="activity-label">START</div>
+                            </div>
+                            {% for activity in critical_paths[0] %}
+                            <div class="path-activity">
+                                <div class="activity-connector">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                                <div class="activity-marker critical">
+                                    <span class="activity-id">{{ activity.id }}</span>
+                                </div>
+                                <div class="activity-info">
+                                    <div class="activity-name">{{ activity.name[:30] }}{% if activity.name|length > 30 %}...{% endif %}</div>
+                                    <div class="activity-duration">{{ activity.duration }}d</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            <div class="path-end">
+                                <div class="activity-connector">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                                <div class="activity-marker end">
+                                    <i class="fas fa-flag-checkered"></i>
+                                </div>
+                                <div class="activity-label">END</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <div class="badge bg-info fs-6 p-2">
+                                <i class="fas fa-clock me-2"></i>
+                                Total Duration: {{ critical_paths[0]|sum(attribute='duration') }} days
                             </div>
                         </div>
                     </div>
@@ -439,585 +999,303 @@
 
                 <div class="row">
                     <div class="col-12">
-                        <div class="card-table">
-                            <h4>Available Activities for Day {{ current_day }}</h4>
-                            {% if parallel_groups %}
-                            <div class="recommendation">
-                                <h5>📊 Parallel Activity Analysis</h5>
-                                <p>We've analyzed all possible sequences for parallel activities. The recommended sequence is shown below, optimized for minimum total delay cost.</p>
-                            </div>
-                            {% endif %}
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-striped align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th>Activity</th>
-                                            <th>Planned Manpower</th>
-                                            <th>Available Manpower</th>
-                                            <th>Skilled (₹{{ activities[0].skilled_cost_per_day if activities else 300 }}/day)</th>
-                                            <th>Semi-Skilled (₹{{ activities[0].semi_skilled_cost_per_day if activities else 200 }}/day)</th>
-                                            <th>Unskilled (₹{{ activities[0].unskilled_cost_per_day if activities else 100 }}/day)</th>
-                                            <th>Material Availability</th>
-                                            <th>Equipment Avail.</th>
-                                            <th>Planned Cost (₹)</th>
-                                            <th style="background:#42a5f5;color:#fff;">Delay Cost/Day (₹)</th>
-                                            <th>Sequence Position</th>
-                                            <th>Total Score</th>
-                                            <th>Score Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    {% for activity in activities %}
-                                        <tr>
-                                            <td>{{ activity.name }}</td>
-                                            <td>
-                                                <div class="small">
-                                                    <div>Skilled: {{ activity.skilled_manpower }}</div>
-                                                    <div>Semi-Skilled: {{ activity.semi_skilled_manpower }}</div>
-                                                    <div>Unskilled: {{ activity.unskilled_manpower }}</div>
-                                                    <div class="fw-bold">Total: {{ activity.planned_manpower }}</div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <input type="number" class="form-control" name="available_manpower_{{ activity.id }}" 
-                                                    value="{{ activity.available_manpower }}" readonly>
-                                                {% if activity.available_manpower < activity.planned_manpower %}
-                                                <div class="constraint-warning">
-                                                    ⚠️ Manpower shortage: {{ activity.planned_manpower - activity.available_manpower }} workers needed
-                                                </div>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <div class="mb-2">
-                                                    <label class="form-label small">Idle:</label>
-                                                    <input type="number" class="form-control form-control-sm manpower-skilled-idle" 
-                                                        name="skilled_idle_{{ activity.id }}" 
-                                                        value="{{ activity.skilled_idle|default(0) }}" 
-                                                        min="0" max="{{ activity.skilled_manpower }}" 
-                                                        data-activity-id="{{ activity.id }}"
-                                                        required>
-                                                </div>
-                                                <div class="small text-muted">
-                                                    Available: {{ activity.available_skilled|default(activity.skilled_manpower) }}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="mb-2">
-                                                    <label class="form-label small">Idle:</label>
-                                                    <input type="number" class="form-control form-control-sm manpower-semi-skilled-idle" 
-                                                        name="semi_skilled_idle_{{ activity.id }}" 
-                                                        value="{{ activity.semi_skilled_idle|default(0) }}" 
-                                                        min="0" max="{{ activity.semi_skilled_manpower }}" 
-                                                        data-activity-id="{{ activity.id }}"
-                                                        required>
-                                                </div>
-                                                <div class="small text-muted">
-                                                    Available: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="mb-2">
-                                                    <label class="form-label small">Idle:</label>
-                                                    <input type="number" class="form-control form-control-sm manpower-unskilled-idle" 
-                                                        name="unskilled_idle_{{ activity.id }}" 
-                                                        value="{{ activity.unskilled_idle|default(0) }}" 
-                                                        min="0" max="{{ activity.unskilled_manpower }}" 
-                                                        data-activity-id="{{ activity.id }}"
-                                                        required>
-                                                </div>
-                                                <div class="small text-muted">
-                                                    Available: {{ activity.available_unskilled|default(activity.unskilled_manpower) }}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <select class="form-select material-availability" 
-                                                    name="material_type_{{ activity.id }}" 
-                                                    data-activity-id="{{ activity.id }}"
-                                                    required>
-                                                    <option value="100" {% if activity.material == 1.0 %}selected{% endif %}>100% Available</option>
-                                                    <option value="custom" {% if activity.material != 1.0 and activity.material != 0 %}selected{% endif %}>Custom Percentage</option>
-                                                    <option value="0" {% if activity.material == 0 %}selected{% endif %}>Not Available</option>
-                                                </select>
-                                                <div class="material-percentage mt-2" style="display: {% if activity.material != 1.0 and activity.material != 0 %}block{% else %}none{% endif %};">
-                                                    <input type="number" class="form-control" 
-                                                        name="material_percentage_{{ activity.id }}" 
-                                                        value="{{ (activity.material * 100)|round }}" 
-                                                        min="0" max="100" step="1"
-                                                        placeholder="Enter percentage">
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <select class="form-select" name="equipment_type_{{ activity.id }}">
-                                                    <option value="owned" {% if activity.equipment_type == 'owned' %}selected{% endif %}>Owned (₹{{ activity.owned_equipment_om_cost_per_day }}/day)</option>
-                                                    <option value="rented" {% if activity.equipment_type == 'rented' %}selected{% endif %}>Rented (₹{{ activity.rented_equipment_cost_per_day }}/day)</option>
-                                                    <option value="no_equipment" {% if activity.equipment_type == 'no_equipment' %}selected{% endif %}>No Equipment (₹0/day)</option>
-                                                </select>
-                                            </td>
-                                            <td>₹{{ activity.planned_cost }}</td>
-                                            <td style="background:#e3f2fd;">₹{{ activity.delay_cost_per_day if activity.delay_cost_per_day else '-' }}</td>
-                                            <td>
-                                                {% if activity.is_first_in_parallel %}
-                                                    <span class="badge bg-success">First in Sequence</span>
-                                                {% else %}
-                                                    <span class="badge bg-info">Later in Sequence</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <span class="fw-bold {% if activity.is_first_in_parallel %}text-success{% endif %}">
-                                                    {{ activity.total_score }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
-                                                    View Details
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="d-grid gap-2 mt-3">
-                                <button type="submit" class="btn btn-success btn-lg">Update & Prioritize</button>
+                        <div class="card bg-gradient-primary text-white mb-4">
+                            <div class="card-body text-center">
+                                <h5 class="card-title mb-3">
+                                    <i class="fas fa-route me-2"></i>Main Critical Path
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="border-end border-white">
+                                            <h6>Start Activity</h6>
+                                            <div class="badge bg-success fs-6 p-2">{{ critical_paths[0][0].name if critical_paths[0] else 'Unknown' }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="border-end border-white">
+                                            <h6>End Activity</h6>
+                                            <div class="badge bg-danger fs-6 p-2">{{ critical_paths[0][-1].name if critical_paths[0] else 'Unknown' }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h6>Total Duration</h6>
+                                        <div class="badge bg-info fs-6 p-2">{{ critical_paths[0]|sum(attribute='duration') }} days</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </form>
 
-            <!-- Score Detail Modals -->
-            {% for activity in activities %}
-            <div class="modal fade" id="scoreModal{{ activity.id }}" tabindex="-1" aria-labelledby="scoreModalLabel{{ activity.id }}" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="scoreModalLabel{{ activity.id }}">Score Details for {{ activity.name }}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="score-breakdown">
-                                <h6>Score Components:</h6>
-                                <div class="row score-details mb-3">
-                                    <div class="col-md-4">
-                                        <span class="score-detail-label">Delay Score:</span>
-                                        <span class="score-detail-value">{{ activity.delay_score }}</span>
-                                        <div class="score-weight">(Weight: {{ activity.weights.delay }}%)</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <span class="score-detail-label">Equipment Score:</span>
-                                        <span class="score-detail-value">{{ activity.equipment_score }}</span>
-                                        <div class="score-weight">(Weight: {{ activity.weights.equipment }}%)</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <span class="score-detail-label">Manpower Score:</span>
-                                        <span class="score-detail-value">{{ activity.manpower_score }}</span>
-                                        <div class="score-weight">(Weight: {{ activity.weights.manpower }}%)</div>
-                                    </div>
-                                </div>
-                                <div class="row score-details mb-3">
-                                    <div class="col-md-6">
-                                        <span class="score-detail-label">Material Score:</span>
-                                        <span class="score-detail-value">{{ activity.material_score }}</span>
-                                        <div class="score-weight">(Weight: {{ activity.weights.material }}%)</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <span class="score-detail-label">Critical Path Score:</span>
-                                        <span class="score-detail-value {% if activity.is_critical %}text-danger fw-bold{% endif %}">
-                                            {{ activity.critical_path_score }}
-                                            {% if activity.is_critical %}
-                                            <span class="badge bg-danger ms-2">Critical Path</span>
-                                            {% elif activity.is_close_to_critical %}
-                                            <span class="badge bg-warning ms-2">Near Critical Path</span>
-                                            {% endif %}
-                                        </span>
-                                        <div class="score-weight">(Weight: {{ activity.weights.critical_path }}%)</div>
-                                    </div>
-                                </div>
-                                {% if activity.total_float > 0 or activity.free_float > 0 %}
-                                <div class="row score-details mb-3">
-                                    <div class="col-12">
-                                        <span class="score-detail-label">Float Information:</span>
-                                        <div class="mt-2">
-                                            {% if activity.free_float > 0 %}
-                                                <span class="badge bg-success me-2">Free Float: {{ activity.free_float }} days</span>
-                                            {% endif %}
-                                            {% if activity.total_float > 0 %}
-                                                <span class="badge bg-warning">Total Float: {{ activity.total_float }} days</span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="text-muted mt-1">
-                                            <small>
-                                                {% if activity.free_float > 0 %}
-                                                    Free Float: Maximum delay without affecting successor activities<br>
-                                                {% endif %}
-                                                {% if activity.total_float > 0 %}
-                                                    Total Float: Maximum delay without affecting project completion
-                                                {% endif %}
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-danger text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Critical Path Sequence
+                                </h5>
                             </div>
-
-                            <!-- Delay Cost Calculation Section -->
-                            <div class="delay-cost-breakdown mt-4">
-                                <h6>Delay Cost Calculation:</h6>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <h6 class="mb-3">Base Daily Costs:</h6>
-                                                <ul class="list-unstyled">
-                                                    <li class="mb-2">
-                                                        <strong>Equipment Cost:</strong>
-                                                        {% if activity.equipment_type == 'rented' %}
-                                                            ₹{{ activity.rented_equipment_cost_per_day }}/day (Rented)
-                                                        {% elif activity.equipment_type == 'owned' %}
-                                                            ₹{{ activity.owned_equipment_om_cost_per_day }}/day (Owned)
-                                                        {% else %}
-                                                            ₹0/day (No Equipment)
-                                                        {% endif %}
-                                                    </li>
-                                                    <li class="mb-2">
-                                                        <strong>Manpower Cost:</strong>
-                                                        <div class="ms-3">
-                                                            <div>Skilled: {{ activity.available_skilled|default(activity.skilled_manpower) }} × ₹{{ activity.skilled_cost_per_day }}/day = ₹{{ (activity.available_skilled|default(activity.skilled_manpower)) * activity.skilled_cost_per_day }}</div>
-                                                            <div>Semi-Skilled: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }} × ₹{{ activity.semi_skilled_cost_per_day }}/day = ₹{{ (activity.available_semi_skilled|default(activity.semi_skilled_manpower)) * activity.semi_skilled_cost_per_day }}</div>
-                                                            <div>Unskilled: {{ activity.available_unskilled|default(activity.unskilled_manpower) }} × ₹{{ activity.unskilled_cost_per_day }}/day = ₹{{ (activity.available_unskilled|default(activity.unskilled_manpower)) * activity.unskilled_cost_per_day }}</div>
-                                                            <div class="fw-bold">Total: ₹{{ activity.manpower_cost_per_day }}/day</div>
+                            <div class="card-body">
+                                <div class="critical-path-timeline">
+                                    {% for activity in critical_paths[0] %}
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker {% if loop.first %}start{% elif loop.last %}end{% else %}critical{% endif %}">
+                                                <i class="fas {% if loop.first %}fa-play{% elif loop.last %}fa-flag-checkered{% else %}fa-circle{% endif %}"></i>
+                                            </div>
+                                            <div class="timeline-content">
+                                                <div class="card">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title text-danger">{{ activity.id }}: {{ activity.name }}</h6>
+                                                        <div class="row">
+                                                            <div class="col-md-3">
+                                                                <small class="text-muted">Duration:</small>
+                                                                <div class="fw-bold">{{ activity.duration }} days</div>
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <small class="text-muted">Manpower:</small>
+                                                                <div class="fw-bold">{{ activity.planned_manpower }} workers</div>
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <small class="text-muted">Daily Cost:</small>
+                                                                <div class="fw-bold">₹{{ activity.manpower_cost_per_day + activity.owned_equipment_om_cost_per_day }}</div>
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <small class="text-muted">Total Cost:</small>
+                                                                <div class="fw-bold">₹{{ (activity.manpower_cost_per_day + activity.owned_equipment_om_cost_per_day) * activity.duration }}</div>
+                                                            </div>
                                                         </div>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <h6 class="mb-3">Site Overhead Impact:</h6>
-                                                <ul class="list-unstyled">
-                                                    {% if activity.is_critical %}
-                                                    <li class="mb-2">
-                                                        <strong>Critical Path Status:</strong>
-                                                        <span class="text-danger">Full Site Overhead Always Applied</span>
-                                                    </li>
-                                                    <li class="mb-2">
-                                                        <strong>Site Overhead Cost:</strong>
-                                                        ₹{{ activity.site_overhead_cost_per_day }}/day
-                                                    </li>
-                                                    {% elif activity.is_close_to_critical and activity.is_delayed %}
-                                                    <li class="mb-2">
-                                                        <strong>Near Critical Path Status:</strong>
-                                                        <span class="text-warning">Half Site Overhead Applied (Delayed)</span>
-                                                    </li>
-                                                    <li class="mb-2">
-                                                        <strong>Site Overhead Cost:</strong>
-                                                        ₹{{ (activity.site_overhead_cost_per_day * 0.5)|round }}/day
-                                                    </li>
-                                                    {% elif activity.is_close_to_critical %}
-                                                    <li class="mb-2">
-                                                        <strong>Status:</strong>
-                                                        <span class="text-success">No Site Overhead (Not Delayed)</span>
-                                                    </li>
-                                                    {% else %}
-                                                    <li class="mb-2">
-                                                        <strong>Status:</strong>
-                                                        <span class="text-success">No Site Overhead (Not Critical)</span>
-                                                    </li>
-                                                    {% endif %}
-                                                    <li class="mb-2">
-                                                        <strong>Total Delay Cost/Day:</strong>
-                                                        ₹{{ activity.total_delay_cost_per_day }}/day
-                                                    </li>
-                                                </ul>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div class="mt-3">
-                                            <h6>Calculation Formula:</h6>
-                                            <div class="bg-light p-3 rounded">
-                                                <p class="mb-2">Manpower Cost = (Skilled Workers × ₹{{ activity.skilled_cost_per_day }}/day) + (Semi-Skilled Workers × ₹{{ activity.semi_skilled_cost_per_day }}/day) + (Unskilled Workers × ₹{{ activity.unskilled_cost_per_day }}/day)</p>
-                                                <p class="mb-2">Base Delay Cost = Manpower Cost + Equipment Cost</p>
-                                                {% if activity.is_critical %}
-                                                <p class="mb-0">Total Delay Cost = Base Delay Cost + Full Site Overhead (Always for Critical Path)</p>
-                                                {% elif activity.is_close_to_critical and activity.is_delayed %}
-                                                <p class="mb-0">Total Delay Cost = Base Delay Cost + (Site Overhead × 0.5) (Only when Delayed)</p>
-                                                {% else %}
-                                                <p class="mb-0">Total Delay Cost = Base Delay Cost (No Site Overhead)</p>
-                                                {% endif %}
+                                        {% if not loop.last %}
+                                            <div class="timeline-arrow">
+                                                <i class="fas fa-arrow-down text-danger"></i>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {% if activity.parallel_group %}
-                            <div class="sequence-analysis">
-                                <h6>Parallel Activity Analysis:</h6>
-                                <p class="text-muted">All possible sequences for parallel activities, optimized for minimum total delay cost.</p>
-                                
-                                {% for sequence in activity.sequence_options %}
-                                <div class="sequence-option {% if sequence.is_best %}best{% endif %}">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h6 class="mb-0">Sequence Option {{ loop.index }}</h6>
-                                        {% if sequence.is_best %}
-                                        <span class="badge bg-success">Best Option</span>
                                         {% endif %}
-                                    </div>
-                                    <table class="sequence-analysis-table">
-                                        <thead>
-                                            <tr>
-                                                <th class="position">Position</th>
-                                                <th class="activity">Activity</th>
-                                                <th class="delay-cost">Delay Cost/Day</th>
-                                                <th class="delay-score">Delay Score</th>
-                                                <th class="score">Total Score</th>
-                                                <th class="status">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for act in sequence.activities %}
-                                            <tr {% if sequence.is_best %}class="best-sequence"{% endif %}>
-                                                <td class="text-center">{{ loop.index }}</td>
-                                                <td>{{ act.name }}</td>
-                                                <td class="delay-cost">₹{{ act.delay_cost_for_score }}</td>
-                                                <td class="delay-score">{{ act.delay_score }}</td>
-                                                <td class="score">{{ act.score.total_score }}</td>
-                                                <td class="text-center">
-                                                    {% if loop.index == 1 %}
-                                                    <span class="sequence-badge first">First</span>
-                                                    {% else %}
-                                                    <span class="sequence-badge later">Later</span>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                    <div class="mt-2">
-                                        <strong>Total Delay Cost:</strong> 
-                                        <span class="delay-cost">₹{{ sequence.total_delay_cost }}</span>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-
-                            {% if activity.constraints %}
-                            <div class="mt-4">
-                                <h6>Constraints & Recommendations:</h6>
-                                <ul class="list-group">
-                                    {% for constraint in activity.constraints %}
-                                    <li class="list-group-item {% if constraint.is_critical %}list-group-item-danger{% endif %}">
-                                        {{ constraint.message }}
-                                        {% if constraint.recommendation %}
-                                        <div class="text-muted mt-1">{{ constraint.recommendation }}</div>
-                                        {% endif %}
-                                    </li>
                                     {% endfor %}
-                                </ul>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-
-            {% if updated %}
-            <div class="card-table">
-                <h4>Prioritized Activities (Highest Priority First)</h4>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped align-middle">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Activity</th>
-                                <th style="background: #42a5f5; color: white;">Total Score</th>
-                                <th>Score Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for activity in activities %}
-                            <tr {% if loop.index0 == 0 %}class="highlight"{% endif %}>
-                                <td>{{ loop.index }}</td>
-                                <td>{{ activity.name }}</td>
-                                <td style="background: #e3f2fd; font-weight: bold; font-size: 1.1rem;">{{ activity.total_score }}</td>
-                                <td>
-                                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#scoreModal{{ activity.id }}">
-                                        View Details
-                                    </button>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <p class="fs-5"><b>Top Priority Activity:</b> {{ activities[0].name if activities else 'None' }}</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- CPM SCHEDULE SECTION -->
-        <div id="cpm-section" class="sidebar-section">
-            <h2 class="mb-4 text-center">🗺️ CPM Schedule (Flowchart)</h2>
-            <div class="card-table">
-                <div id="cpm-mermaid" class="text-center">
-                    <pre class="mermaid">{{ cpm_mermaid }}</pre>
-                </div>
-                <div class="mt-4">
-                    <h4 class="text-center mb-3">Critical Paths</h4>
-                    {% for path in critical_paths %}
-                    <div class="mb-4">
-                        <h5 class="text-center mb-3">Critical Path {{ loop.index }}</h5>
-                        <div class="d-flex justify-content-center align-items-center flex-wrap">
-                            {% for activity in path %}
-                                <div class="d-flex align-items-center">
-                                    <div class="text-center">
-                                        <span class="badge bg-danger p-2 m-1">{{ activity.name }}</span>
-                                        <div class="small text-white mt-1">({{ activity.duration }} days)</div>
-                                    </div>
-                                    {% if not loop.last %}
-                                        <div class="mx-3 d-flex align-items-center">
-                                            <i class="fas fa-arrow-right" style="color: #000; font-size: 1.5rem; width: 30px; text-align: center;"></i>
-                                        </div>
-                                    {% endif %}
                                 </div>
-                            {% endfor %}
-                        </div>
-                        <div class="text-center mt-2">
-                            <span class="badge bg-info">Path Duration: {{ path|sum(attribute='duration') }} days</span>
+                            </div>
                         </div>
                     </div>
-                    {% if not loop.last %}
-                        <hr class="text-white">
-                    {% endif %}
-                    {% endfor %}
-                    <div class="text-center mt-4">
-                        <h5 class="text-white">Total Project Duration: {{ critical_paths[0]|sum(attribute='duration') if critical_paths else 0 }} days</h5>
-                        <p class="text-muted mt-2">Note: The critical paths represent the longest sequences of activities that determine the minimum project duration. Any delay in these activities will directly impact the project completion date. Activities on the critical paths have zero float/slack time.</p>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">📊 Critical Path Statistics</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-primary">{{ critical_paths[0]|length }}</div>
+                                            <div class="stat-label">Activities</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-success">{{ critical_paths[0]|sum(attribute='duration') }}</div>
+                                            <div class="stat-label">Total Days</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">💰 Cost Impact</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-warning">
+                                                ₹{{ (critical_paths[0]|sum(attribute='manpower_cost_per_day') + critical_paths[0]|sum(attribute='owned_equipment_om_cost_per_day')) * 1 }}
+                                            </div>
+                                            <div class="stat-label">Daily Cost</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-danger">
+                                                ₹{{ (critical_paths[0]|sum(attribute='manpower_cost_per_day') + critical_paths[0]|sum(attribute='owned_equipment_om_cost_per_day')) * critical_paths[0]|sum(attribute='duration') }}
+                                            </div>
+                                            <div class="stat-label">Total Cost</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>No critical path found</strong>
+                        <p class="mb-0">The critical path calculation could not be completed. Please check the activity dependencies.</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="text-center mt-4">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Critical Path Information</h6>
+                        <p class="mb-2">The critical path represents the longest sequence of activities that determines the minimum project duration.</p>
+                        <p class="mb-2"><strong>Key Points:</strong></p>
+                        <ul class="text-start mb-0">
+                            <li>Any delay in critical path activities will directly impact the project completion date</li>
+                            <li>Activities on the critical path have zero float/slack time</li>
+                            <li>Critical path activities require special attention and priority management</li>
+                            <li>Total project duration equals the sum of critical path activity durations</li>
+                        </ul>
                     </div>
                 </div>
             </div>
-            <!-- Float Analysis Table -->
-            <div class="card-table mt-4">
-                <h4 class="text-center mb-4">Activity Float Analysis</h4>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped align-middle">
-                        <thead>
-                            <tr>
-                                <th>Activity ID</th>
-                                <th>Activity Name</th>
-                                <th>Duration</th>
-                                <th>Early Start</th>
-                                <th>Early Finish</th>
-                                <th>Late Start</th>
-                                <th>Late Finish</th>
-                                <th>Total Float</th>
-                                <th>Free Float</th>
-                                <th>Critical Path</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for activity in all_activities %}
-                            <tr {% if activity.total_float == 0 %}class="table-danger"{% endif %}>
-                                <td>{{ activity.id }}</td>
-                                <td>{{ activity.name }}</td>
-                                <td>{{ activity.duration }}</td>
-                                <td>{{ activity.early_start }}</td>
-                                <td>{{ activity.early_finish }}</td>
-                                <td>{{ activity.late_start }}</td>
-                                <td>{{ activity.late_finish }}</td>
-                                <td>{{ activity.total_float }}</td>
-                                <td>{{ activity.free_float }}</td>
-                                <td>
-                                    {% if activity.total_float == 0 %}
-                                        <span class="badge bg-danger">Critical</span>
-                                    {% else %}
-                                        <span class="badge bg-success">Non-Critical</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-3">
-                    <h5>Float Analysis Notes:</h5>
-                    <ul class="text-muted">
-                        <li><strong>Total Float:</strong> The maximum amount of time an activity can be delayed without delaying the project completion date.</li>
-                        <li><strong>Free Float:</strong> The maximum amount of time an activity can be delayed without delaying the early start of any successor activity.</li>
-                        <li>Activities with zero total float are on the critical path.</li>
-                        <li>Free float is always less than or equal to total float.</li>
-                    </ul>
+
+            <!-- Float Analysis Subsection -->
+            <div id="cpm-float-analysis" class="subsection">
+                <h2 class="mb-4 text-center">⏰ Activity Float Analysis</h2>
+                <div class="card-table">
+                    <h4 class="text-center mb-4">Activity Float Analysis</h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Activity ID</th>
+                                    <th>Activity Name</th>
+                                    <th>Duration</th>
+                                    <th>Early Start</th>
+                                    <th>Early Finish</th>
+                                    <th>Late Start</th>
+                                    <th>Late Finish</th>
+                                    <th>Total Float</th>
+                                    <th>Free Float</th>
+                                    <th>Critical Path</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for activity in all_activities %}
+                                <tr {% if activity.total_float == 0 %}class="table-danger"{% endif %}>
+                                    <td>{{ activity.id }}</td>
+                                    <td>{{ activity.name }}</td>
+                                    <td>{{ activity.duration }}</td>
+                                    <td>{{ activity.early_start }}</td>
+                                    <td>{{ activity.early_finish }}</td>
+                                    <td>{{ activity.late_start }}</td>
+                                    <td>{{ activity.late_finish }}</td>
+                                    <td>{{ activity.total_float }}</td>
+                                    <td>{{ activity.free_float }}</td>
+                                    <td>
+                                        {% if activity.total_float == 0 %}
+                                            <span class="badge bg-danger">Critical</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Non-Critical</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3">
+                        <h5>Float Analysis Notes:</h5>
+                        <ul class="text-muted">
+                            <li><strong>Total Float:</strong> The maximum amount of time an activity can be delayed without delaying the project completion date.</li>
+                            <li><strong>Free Float:</strong> The maximum amount of time an activity can be delayed without delaying the early start of any successor activity.</li>
+                            <li>Activities with zero total float are on the critical path.</li>
+                            <li>Free float is always less than or equal to total float.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- COST ANALYSIS SECTION -->
         <div id="cost-analysis-section" class="sidebar-section">
-            <h2 class="mb-4 text-center">💰 Cost Analysis Dashboard</h2>
-            <div class="row">
-                <div class="col-12">
-                    <div class="card-table">
-                        <h4>Cost Overview</h4>
-                        <div id="cost-overview-chart" style="height: 400px;"></div>
+            <!-- Cost Overview Subsection -->
+            <div id="cost-analysis-overview" class="subsection active">
+                <h2 class="mb-4 text-center">💰 50-Floor Project Cost Analysis Dashboard</h2>
+                <div class="alert alert-success mb-4">
+                    <h6><i class="fas fa-chart-line me-2"></i>Cost Analysis Overview</h6>
+                    <p class="mb-0">Comprehensive cost tracking for 110 activities including foundation, structure, MEP, finishing, and handover phases.</p>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card-table">
+                            <h4>Cost Overview</h4>
+                            <div id="cost-overview-chart" style="height: 400px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card-table">
-                        <h4>Cost Overrun Analysis</h4>
-                        <div id="cost-overrun-chart" style="height: 400px;"></div>
+
+            <!-- Cost Overrun Subsection -->
+            <div id="cost-analysis-overrun" class="subsection">
+                <h2 class="mb-4 text-center">⚠️ Cost Overrun Analysis</h2>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card-table">
+                            <h4>Cost Overrun Analysis</h4>
+                            <div id="cost-overrun-chart" style="height: 400px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card-table">
-                        <h4>Cost Overrun Details</h4>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-striped align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Activity</th>
-                                        <th>Planned Cost (₹)</th>
-                                        <th>Actual Cost (₹)</th>
-                                        <th>Cost Overrun (₹)</th>
-                                        <th>Overrun %</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for activity in summary %}
-                                    <tr>
-                                        <td>{{ activity.name }}</td>
-                                        <td>₹{{ activity.planned_cost }}</td>
-                                        <td>₹{{ activity.actual_cost }}</td>
-                                        <td>
-                                            {% if activity.actual_cost > activity.planned_cost %}
-                                                <span class="text-danger fw-bold">₹{{ activity.actual_cost - activity.planned_cost }}</span>
-                                            {% else %}
-                                                ₹0
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if activity.actual_cost > activity.planned_cost %}
-                                                <span class="text-danger fw-bold">{{ ((activity.actual_cost - activity.planned_cost) / activity.planned_cost * 100)|round(2) }}%</span>
-                                            {% else %}
-                                                0%
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if activity.status == "Completed" %}
-                                                <span class="status-completed">Completed</span>
-                                            {% elif activity.status == "Completed Today" %}
-                                                <span class="status-inprogress">In Progress</span>
-                                            {% else %}
-                                                <span class="status-pending">Pending</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
+
+            <!-- Cost Details Subsection -->
+            <div id="cost-analysis-details" class="subsection">
+                <h2 class="mb-4 text-center">📊 Cost Overrun Details</h2>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card-table">
+                            <h4>Cost Overrun Details</h4>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Activity</th>
+                                            <th>Planned Cost (₹)</th>
+                                            <th>Actual Cost (₹)</th>
+                                            <th>Cost Overrun (₹)</th>
+                                            <th>Overrun %</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for activity in summary %}
+                                        <tr>
+                                            <td>{{ activity.name }}</td>
+                                            <td>₹{{ activity.planned_cost }}</td>
+                                            <td>₹{{ activity.actual_cost }}</td>
+                                            <td>
+                                                {% if activity.actual_cost > activity.planned_cost %}
+                                                    <span class="text-danger fw-bold">₹{{ activity.actual_cost - activity.planned_cost }}</span>
+                                                {% else %}
+                                                    ₹0
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if activity.actual_cost > activity.planned_cost %}
+                                                    <span class="text-danger fw-bold">{{ ((activity.actual_cost - activity.planned_cost) / activity.planned_cost * 100)|round(2) }}%</span>
+                                                {% else %}
+                                                    0%
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if activity.status == "Completed" %}
+                                                    <span class="status-completed">Completed</span>
+                                                {% elif activity.status == "Completed Today" %}
+                                                    <span class="status-inprogress">In Progress</span>
+                                                {% else %}
+                                                    <span class="status-pending">Pending</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1026,39 +1304,365 @@
 
         <!-- SETTINGS SECTION -->
         <div id="settings-section" class="sidebar-section">
-            <h2 class="mb-4 text-center">⚙️ Settings</h2>
-            <div class="card-table">
-                <h4>Project Owner</h4>
-                <p style="font-size:1.2rem;font-weight:bold;color:#1976d2;">{{ owner_name }}</p>
-                <hr>
-                <p>Settings and future options can be configured here.</p>
+            <!-- Project Information Subsection -->
+            <div id="settings-project-info" class="subsection active">
+                <h2 class="mb-4 text-center">⚙️ Project Settings</h2>
+                <div class="card-table">
+                    <h4>Project Information</h4>
+                    <div class="alert alert-primary">
+                        <h5><i class="fas fa-user-tie me-2"></i>Project Engineer</h5>
+                        <p style="font-size:1.0rem;font-weight:bold;color:#1976d2;">Patchikolla Preetham Sai</p>
+                        <p class="mb-2"><strong>Institution:</strong> Indian Institute of Technology Madras (IIT Madras)</p>
+                        <p class="mb-2"><strong>Company:</strong> Ashoka Builders India Private Limited (ASBL)</p>
+                        <p class="mb-2"><strong>Project:</strong> 50-Floor Residential Tower with 4 Basements</p>
+                        <p class="mb-2"><strong>Responsibility:</strong> Overseeing multiple parallel construction activities</p>
+                        <p class="mb-0"><strong>Total Activities:</strong> 110 construction activities</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Phases Subsection -->
+            <div id="settings-phases" class="subsection">
+                <h2 class="mb-4 text-center">🏗️ Project Phases</h2>
+                <div class="card-table">
+                    <h4>Project Phases</h4>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item"><i class="fas fa-building me-2"></i>Foundation & Basements (4 levels)</li>
+                        <li class="list-group-item"><i class="fas fa-layer-group me-2"></i>Ground Floor & Superstructure (50 floors)</li>
+                        <li class="list-group-item"><i class="fas fa-bolt me-2"></i>MEP Systems (Electrical, Plumbing, HVAC)</li>
+                        <li class="list-group-item"><i class="fas fa-paint-brush me-2"></i>Finishing Works (Flooring, Painting)</li>
+                        <li class="list-group-item"><i class="fas fa-handshake me-2"></i>Handover & Documentation</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Score Detail Modals -->
+{% for activity in activities %}
+<div class="modal fade" id="scoreModal{{ activity.id }}" tabindex="-1" aria-labelledby="scoreModalLabel{{ activity.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scoreModalLabel{{ activity.id }}">Score Details for {{ activity.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="score-breakdown">
+                    <h6>Score Components:</h6>
+                    <div class="row score-details mb-3">
+                        <div class="col-md-4">
+                            <span class="score-detail-label">Delay Score:</span>
+                            <span class="score-detail-value">{{ activity.delay_score }}</span>
+                            <div class="score-weight">(Weight: {{ activity.weights.delay }}%)</div>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="score-detail-label">Equipment Score:</span>
+                            <span class="score-detail-value">{{ activity.equipment_score }}</span>
+                            <div class="score-weight">(Weight: {{ activity.weights.equipment }}%)</div>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="score-detail-label">Manpower Score:</span>
+                            <span class="score-detail-value">{{ activity.manpower_score }}</span>
+                            <div class="score-weight">(Weight: {{ activity.weights.manpower }}%)</div>
+                        </div>
+                    </div>
+                    <div class="row score-details mb-3">
+                        <div class="col-md-6">
+                            <span class="score-detail-label">Material Score:</span>
+                            <span class="score-detail-value">{{ activity.material_score }}</span>
+                            <div class="score-weight">(Weight: {{ activity.weights.material }}%)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="score-detail-label">Critical Path Score:</span>
+                            <span class="score-detail-value {% if activity.is_critical %}text-danger fw-bold{% endif %}">
+                                {{ activity.critical_path_score }}
+                                {% if activity.is_critical %}
+                                <span class="badge bg-danger ms-2">Critical Path</span>
+                                {% elif activity.is_close_to_critical %}
+                                <span class="badge bg-warning ms-2">Near Critical Path</span>
+                                {% endif %}
+                            </span>
+                            <div class="score-weight">(Weight: {{ activity.weights.critical_path }}%)</div>
+                        </div>
+                    </div>
+                    {% if activity.total_float > 0 or activity.free_float > 0 %}
+                    <div class="row score-details mb-3">
+                        <div class="col-12">
+                            <span class="score-detail-label">Float Information:</span>
+                            <div class="mt-2">
+                                {% if activity.free_float > 0 %}
+                                    <span class="badge bg-success me-2">Free Float: {{ activity.free_float }} days</span>
+                                {% endif %}
+                                {% if activity.total_float > 0 %}
+                                    <span class="badge bg-warning">Total Float: {{ activity.total_float }} days</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-muted mt-1">
+                                <small>
+                                    {% if activity.free_float > 0 %}
+                                        Free Float: Maximum delay without affecting successor activities<br>
+                                    {% endif %}
+                                    {% if activity.total_float > 0 %}
+                                        Total Float: Maximum delay without affecting project completion
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Delay Cost Calculation Section -->
+                <div class="delay-cost-breakdown mt-4">
+                    <h6>Delay Cost Calculation:</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="mb-3">Base Daily Costs:</h6>
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <strong>Equipment Cost:</strong>
+                                            {% if activity.equipment_type == 'rented' %}
+                                                ₹{{ activity.rented_equipment_cost_per_day }}/day (Rented)
+                                            {% elif activity.equipment_type == 'owned' %}
+                                                ₹{{ activity.owned_equipment_om_cost_per_day }}/day (Owned)
+                                            {% else %}
+                                                ₹0/day (No Equipment)
+                                            {% endif %}
+                                        </li>
+                                        <li class="mb-2">
+                                            <strong>Manpower Cost:</strong>
+                                            <div class="ms-3">
+                                                <div>Skilled: {{ activity.available_skilled|default(activity.skilled_manpower) }} × ₹{{ activity.skilled_cost_per_day }}/day = ₹{{ (activity.available_skilled|default(activity.skilled_manpower)) * activity.skilled_cost_per_day }}</div>
+                                                <div>Semi-Skilled: {{ activity.available_semi_skilled|default(activity.semi_skilled_manpower) }} × ₹{{ activity.semi_skilled_cost_per_day }}/day = ₹{{ (activity.available_semi_skilled|default(activity.semi_skilled_manpower)) * activity.semi_skilled_cost_per_day }}</div>
+                                                <div>Unskilled: {{ activity.available_unskilled|default(activity.unskilled_manpower) }} × ₹{{ activity.unskilled_cost_per_day }}/day = ₹{{ (activity.available_unskilled|default(activity.unskilled_manpower)) * activity.unskilled_cost_per_day }}</div>
+                                                <div class="fw-bold">Total: ₹{{ activity.manpower_cost_per_day }}/day</div>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="mb-3">Site Overhead Impact:</h6>
+                                    <ul class="list-unstyled">
+                                        {% if activity.is_critical %}
+                                        <li class="mb-2">
+                                            <strong>Critical Path Status:</strong>
+                                            <span class="text-danger">Full Site Overhead Always Applied</span>
+                                        </li>
+                                        <li class="mb-2">
+                                            <strong>Site Overhead Cost:</strong>
+                                            ₹{{ activity.site_overhead_cost_per_day }}/day
+                                        </li>
+                                        {% elif activity.is_close_to_critical and activity.is_delayed %}
+                                        <li class="mb-2">
+                                            <strong>Near Critical Path Status:</strong>
+                                            <span class="text-warning">Half Site Overhead Applied (Delayed)</span>
+                                        </li>
+                                        <li class="mb-2">
+                                            <strong>Site Overhead Cost:</strong>
+                                            ₹{{ (activity.site_overhead_cost_per_day * 0.5)|round }}/day
+                                        </li>
+                                        {% elif activity.is_close_to_critical %}
+                                        <li class="mb-2">
+                                            <strong>Status:</strong>
+                                            <span class="text-success">No Site Overhead (Not Delayed)</span>
+                                        </li>
+                                        {% else %}
+                                        <li class="mb-2">
+                                            <strong>Status:</strong>
+                                            <span class="text-success">No Site Overhead (Not Critical)</span>
+                                        </li>
+                                        {% endif %}
+                                        <li class="mb-2">
+                                            <strong>Total Delay Cost/Day:</strong>
+                                            ₹{{ activity.total_delay_cost_per_day }}/day
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <h6>Calculation Formula:</h6>
+                                <div class="bg-light p-3 rounded">
+                                    <p class="mb-2">Manpower Cost = (Skilled Workers × ₹{{ activity.skilled_cost_per_day }}/day) + (Semi-Skilled Workers × ₹{{ activity.semi_skilled_cost_per_day }}/day) + (Unskilled Workers × ₹{{ activity.unskilled_cost_per_day }}/day)</p>
+                                    <p class="mb-2">Base Delay Cost = Manpower Cost + Equipment Cost</p>
+                                    {% if activity.is_critical %}
+                                    <p class="mb-0">Total Delay Cost = Base Delay Cost + Full Site Overhead (Always for Critical Path)</p>
+                                    {% elif activity.is_close_to_critical and activity.is_delayed %}
+                                    <p class="mb-0">Total Delay Cost = Base Delay Cost + (Site Overhead × 0.5) (Only when Delayed)</p>
+                                    {% else %}
+                                    <p class="mb-0">Total Delay Cost = Base Delay Cost (No Site Overhead)</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if activity.parallel_group %}
+                <div class="sequence-analysis">
+                    <h6>Parallel Activity Analysis:</h6>
+                    <p class="text-muted">All possible sequences for parallel activities, optimized for minimum total delay cost.</p>
+                    
+                    {% for sequence in activity.sequence_options %}
+                    <div class="sequence-option {% if sequence.is_best %}best{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Sequence Option {{ loop.index }}</h6>
+                            {% if sequence.is_best %}
+                            <span class="badge bg-success">Best Option</span>
+                            {% endif %}
+                        </div>
+                        <table class="sequence-analysis-table">
+                            <thead>
+                                <tr>
+                                    <th class="position">Position</th>
+                                    <th class="activity">Activity</th>
+                                    <th class="delay-cost">Delay Cost/Day</th>
+                                    <th class="delay-score">Delay Score</th>
+                                    <th class="score">Total Score</th>
+                                    <th class="status">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for act in sequence.activities %}
+                                <tr {% if sequence.is_best %}class="best-sequence"{% endif %}>
+                                    <td class="text-center">{{ loop.index }}</td>
+                                    <td>{{ act.name }}</td>
+                                    <td class="delay-cost">₹{{ act.delay_cost_for_score }}</td>
+                                    <td class="delay-score">{{ act.delay_score }}</td>
+                                    <td class="score">{{ act.score.total_score }}</td>
+                                    <td class="text-center">
+                                        {% if loop.index == 1 %}
+                                        <span class="sequence-badge first">First</span>
+                                        {% else %}
+                                        <span class="sequence-badge later">Later</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="mt-2">
+                            <strong>Total Delay Cost:</strong> 
+                            <span class="delay-cost">₹{{ sequence.total_delay_cost }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if activity.constraints %}
+                <div class="mt-4">
+                    <h6>Constraints & Recommendations:</h6>
+                    <ul class="list-group">
+                        {% for constraint in activity.constraints %}
+                        <li class="list-group-item {% if constraint.is_critical %}list-group-item-danger{% endif %}">
+                            {{ constraint.message }}
+                            {% if constraint.recommendation %}
+                            <div class="text-muted mt-1">{{ constraint.recommendation }}</div>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // Sidebar navigation
-    document.querySelectorAll('#sidebar-nav .nav-link').forEach(function(link) {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            document.querySelectorAll('#sidebar-nav .nav-link').forEach(function(l) { l.classList.remove('active'); });
-            link.classList.add('active');
-            var section = link.getAttribute('data-section');
-            document.querySelectorAll('.sidebar-section').forEach(function(sec) { sec.classList.remove('active'); });
-            if (section === 'dashboard') document.getElementById('dashboard-section').classList.add('active');
-            if (section === 'cpm') {
-                document.getElementById('cpm-section').classList.add('active');
-                if (window.mermaid) {
-                    window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle main navigation items (collapsible)
+        document.querySelectorAll('.main-nav-item').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Toggle submenu
+                const submenu = this.nextElementSibling;
+                const icon = this.querySelector('.submenu-icon');
+                
+                if (submenu.style.display === 'none' || submenu.style.display === '') {
+                    submenu.style.display = 'block';
+                    icon.classList.add('rotated');
+                    this.classList.add('active');
+                } else {
+                    submenu.style.display = 'none';
+                    icon.classList.remove('rotated');
+                    this.classList.remove('active');
                 }
-            }
-            if (section === 'cost-analysis') {
-                document.getElementById('cost-analysis-section').classList.add('active');
-                renderCostCharts();
-            }
-            if (section === 'settings') document.getElementById('settings-section').classList.add('active');
+            });
         });
+
+        // Handle sub-navigation items
+        document.querySelectorAll('.sub-nav-item').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all sub-nav items
+                document.querySelectorAll('.sub-nav-item').forEach(function(l) { 
+                    l.classList.remove('active'); 
+                });
+                
+                // Add active class to clicked item
+                link.classList.add('active');
+                
+                // Get section and subsection
+                const section = link.getAttribute('data-section');
+                const subsection = link.getAttribute('data-subsection');
+                
+                // Hide all sections
+                document.querySelectorAll('.sidebar-section').forEach(function(sec) { 
+                    sec.classList.remove('active'); 
+                });
+                
+                // Hide all subsections
+                document.querySelectorAll('.subsection').forEach(function(subsec) { 
+                    subsec.classList.remove('active'); 
+                });
+                
+                // Show the selected section
+                const targetSection = document.getElementById(section + '-section');
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                }
+                
+                // Show the selected subsection
+                const targetSubsection = document.getElementById(section + '-' + subsection);
+                if (targetSubsection) {
+                    targetSubsection.classList.add('active');
+                }
+                
+                // Special handling for CPM mermaid rendering
+                if (section === 'cpm' && window.mermaid) {
+                    setTimeout(function() {
+                        // Only re-init visible mermaid blocks (in cpm-flowchart)
+                        var flowchartSection = document.getElementById('cpm-flowchart');
+                        if (flowchartSection && flowchartSection.classList.contains('active')) {
+                            window.mermaid.init(undefined, flowchartSection.querySelectorAll('.mermaid'));
+                        }
+                    }, 100);
+                }
+                
+                // Special handling for cost analysis charts
+                if (section === 'cost-analysis') {
+                    setTimeout(function() {
+                        renderCostCharts();
+                    }, 100);
+                }
+            });
+        });
+
+        // Initialize with first subsection active
+        const firstSubNav = document.querySelector('.sub-nav-item');
+        if (firstSubNav) {
+            firstSubNav.click();
+        }
     });
 
     // CPM Mermaid rendering
@@ -1073,17 +1677,21 @@
     // Cost Analysis Charts
     function renderCostCharts() {
         // Cost Overview Chart
+        const activityNames = {{ summary|map(attribute='name')|list|tojson|safe }};
+        const plannedCosts = {{ summary|map(attribute='planned_cost')|list|tojson|safe }};
+        const actualCosts = {{ summary|map(attribute='actual_cost')|list|tojson|safe }};
+        const delayCosts = {{ summary|map(attribute='delay_cost')|list|tojson|safe }};
         const costOverviewData = [
             {
-                x: {{ summary|map(attribute='name')|list|tojson }},
-                y: {{ summary|map(attribute='planned_cost')|list|tojson }},
+                x: activityNames,
+                y: plannedCosts,
                 name: 'Planned Cost',
                 type: 'bar',
                 marker: {color: '#42a5f5'}
             },
             {
-                x: {{ summary|map(attribute='name')|list|tojson }},
-                y: {{ summary|map(attribute='actual_cost')|list|tojson }},
+                x: activityNames,
+                y: actualCosts,
                 name: 'Actual Cost',
                 type: 'bar',
                 marker: {color: '#00e676'}
@@ -1106,11 +1714,11 @@
 
         // Cost Overrun Chart
         const costOverrunData = [{
-            x: {{ summary|map(attribute='name')|list|tojson }},
-            y: {{ summary|map(attribute='delay_cost')|list|tojson }},
+            x: activityNames,
+            y: delayCosts,
             type: 'bar',
             marker: {
-                color: {{ summary|map(attribute='delay_cost')|list|tojson }}.map(cost => cost > 0 ? '#ff5252' : '#00e676')
+                color: delayCosts.map(cost => cost > 0 ? '#ff5252' : '#00e676')
             }
         }];
 
@@ -1125,11 +1733,6 @@
 
         Plotly.newPlot('cost-overrun-chart', costOverrunData, costOverrunLayout);
     }
-
-    // Initialize cost charts when cost analysis section is active
-    document.querySelector('[data-section="cost-analysis"]').addEventListener('click', function() {
-        renderCostCharts();
-    });
 
     // Add this to your existing JavaScript
     document.addEventListener('DOMContentLoaded', function() {
@@ -1211,6 +1814,390 @@
             });
         });
     });
+
+    // CPM vis.js rendering
+    var cytoscapeElements = {{ cpm_cytoscape_elements|tojson|safe }};
+    function renderVisjsCPM(nodes, edges) {
+        var container = document.getElementById('cpm-visjs');
+        var data = {
+            nodes: new vis.DataSet(nodes),
+            edges: new vis.DataSet(edges)
+        };
+        var options = {
+            layout: {
+                hierarchical: {
+                    direction: 'LR',
+                    sortMethod: 'directed',
+                    nodeSpacing: 120,
+                    levelSeparation: 120
+                }
+            },
+            edges: {
+                arrows: 'to',
+                color: { color: '#90caf9', highlight: '#1976d2' },
+                width: 2,
+                smooth: true
+            },
+            nodes: {
+                shape: 'box',
+                color: {
+                    background: '#1976d2',
+                    border: '#fff',
+                    highlight: {
+                        background: '#d32f2f',
+                        border: '#ffeb3b'
+                    }
+                },
+                font: { color: '#fff', size: 14, face: 'Montserrat', bold: true },
+                borderWidth: 2,
+                margin: 10
+            },
+            physics: false,
+            interaction: { zoomView: true, dragView: true }
+        };
+        new vis.Network(container, data, options);
+    }
+    function getVisjsDataFromCytoscape(cytoscapeElements) {
+        var nodes = [];
+        var edges = [];
+        cytoscapeElements.forEach(function(el) {
+            if (el.data && el.data.id && !el.data.source && !el.data.target) {
+                nodes.push({
+                    id: el.data.id,
+                    label: el.data.label.replace(/\\n/g, '\n'),
+                    color: el.classes === 'critical' ? { background: '#d32f2f', border: '#ffeb3b' } : undefined
+                });
+            } else if (el.data && el.data.source && el.data.target) {
+                edges.push({
+                    from: el.data.source,
+                    to: el.data.target,
+                    color: el.classes === 'critical' ? '#d32f2f' : '#90caf9',
+                    width: el.classes === 'critical' ? 4 : 2
+                });
+            }
+        });
+        return { nodes: nodes, edges: edges };
+    }
+    function showVisjsIfActive() {
+        var flowchartSection = document.getElementById('cpm-flowchart');
+        if (flowchartSection && flowchartSection.classList.contains('active')) {
+            var visjsData = getVisjsDataFromCytoscape(cytoscapeElements);
+            renderVisjsCPM(visjsData.nodes, visjsData.edges);
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        showVisjsIfActive();
+        document.querySelectorAll('.sub-nav-item').forEach(function(link) {
+            link.addEventListener('click', function() {
+                setTimeout(showVisjsIfActive, 100);
+            });
+        });
+    });
+</script>
+<!-- Place vis.js CPM rendering code here, after all other scripts -->
+<script>
+var cytoscapeElements = {{ cpm_cytoscape_elements|tojson|safe }};
+function renderVisjsCPM(nodes, edges) {
+    var container = document.getElementById('cpm-visjs');
+    var data = {
+        nodes: new vis.DataSet(nodes),
+        edges: new vis.DataSet(edges)
+    };
+    var options = {
+        layout: {
+            hierarchical: {
+                direction: 'LR',
+                sortMethod: 'directed',
+                nodeSpacing: 120,
+                levelSeparation: 120
+            }
+        },
+        edges: {
+            arrows: 'to',
+            color: { color: '#90caf9', highlight: '#1976d2' },
+            width: 2,
+            smooth: true
+        },
+        nodes: {
+            shape: 'box',
+            color: {
+                background: '#1976d2',
+                border: '#fff',
+                highlight: {
+                    background: '#d32f2f',
+                    border: '#ffeb3b'
+                }
+            },
+            font: { color: '#fff', size: 14, face: 'Montserrat', bold: true },
+            borderWidth: 2,
+            margin: 10
+        },
+        physics: false,
+        interaction: { zoomView: true, dragView: true }
+    };
+    new vis.Network(container, data, options);
+}
+function getVisjsDataFromCytoscape(cytoscapeElements) {
+    var nodes = [];
+    var edges = [];
+    cytoscapeElements.forEach(function(el) {
+        if (el.data && el.data.id && !el.data.source && !el.data.target) {
+            nodes.push({
+                id: el.data.id,
+                label: el.data.label.replace(/\\n/g, '\n'),
+                color: el.classes === 'critical' ? { background: '#d32f2f', border: '#ffeb3b' } : undefined
+            });
+        } else if (el.data && el.data.source && el.data.target) {
+            edges.push({
+                from: el.data.source,
+                to: el.data.target,
+                color: el.classes === 'critical' ? '#d32f2f' : '#90caf9',
+                width: el.classes === 'critical' ? 4 : 2
+            });
+        }
+    });
+    return { nodes: nodes, edges: edges };
+}
+function showVisjsIfActive() {
+    var flowchartSection = document.getElementById('cpm-flowchart');
+    if (flowchartSection && flowchartSection.classList.contains('active')) {
+        var visjsData = getVisjsDataFromCytoscape(cytoscapeElements);
+        renderVisjsCPM(visjsData.nodes, visjsData.edges);
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    showVisjsIfActive();
+    document.querySelectorAll('.sub-nav-item').forEach(function(link) {
+        link.addEventListener('click', function() {
+            setTimeout(showVisjsIfActive, 100);
+        });
+    });
+});
+</script>
+<script>
+// CPM GoJS rendering
+function renderGojsCPM(nodes, links, activityMap) {
+    var $ = go.GraphObject.make;
+    var diagram = $(go.Diagram, "cpm-gojs", {
+        initialContentAlignment: go.Spot.Center,
+        "undoManager.isEnabled": false,
+        layout: $(go.LayeredDigraphLayout, { direction: 0, layerSpacing: 60, columnSpacing: 40 }),
+        allowZoom: true,
+        allowHorizontalScroll: true,
+        allowVerticalScroll: true,
+        "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
+        "draggingTool.isGridSnapEnabled": false,
+        "linkingTool.isUnconnectedLinkValid": false,
+        "linkingTool.portGravity": 20,
+        "relinkingTool.isUnconnectedLinkValid": false,
+        "relinkingTool.portGravity": 20,
+        "animationManager.isEnabled": true
+    });
+    diagram.isReadOnly = true;
+    if (diagram.div) diagram.div.style.background = 'none';
+    diagram.nodeTemplate = $(go.Node, "Auto",
+        $(go.Shape, "RoundedRectangle",
+            new go.Binding("fill", "isCritical", function(c) { return c ? "#d32f2f" : "#1976d2"; }),
+            new go.Binding("stroke", "isCritical", function(c) { return c ? "#ffeb3b" : "#fff"; }),
+            { strokeWidth: 2 }
+        ),
+        $(go.TextBlock,
+            { margin: 8, font: "bold 12px Montserrat, Arial, sans-serif", stroke: "#fff", wrap: go.TextBlock.WrapFit, width: 120, textAlign: "center" },
+            new go.Binding("text", "label")
+        )
+    );
+    diagram.linkTemplate = $(go.Link,
+        { routing: go.Link.AvoidsNodes, curve: go.Link.JumpOver, corner: 8, toShortLength: 8 },
+        $(go.Shape, { strokeWidth: 2 }, new go.Binding("stroke", "isCritical", function(c) { return c ? "#d32f2f" : "#90caf9"; })),
+        $(go.Shape, { toArrow: "Standard", stroke: null }, new go.Binding("fill", "isCritical", function(c) { return c ? "#d32f2f" : "#90caf9"; })),
+    );
+    diagram.model = new go.GraphLinksModel(nodes, links);
+    diagram.zoomToFit();
+
+    // Node click event to show activity details
+    diagram.addDiagramListener("ObjectSingleClicked", function(e) {
+        var part = e.subject.part;
+        if (part instanceof go.Node) {
+            var key = part.data.key;
+            var activity = activityMap[key];
+            if (activity) {
+                showActivityDetails(activity);
+            }
+        }
+    });
+    // Click outside to hide details
+    diagram.div.addEventListener('click', function(evt) {
+        if (evt.target === diagram.div) {
+            hideActivityDetails();
+        }
+    });
+}
+// Convert CPM data from Flask (Cytoscape format) to GoJS format and build activity map
+function getGojsDataFromCytoscape(cytoscapeElements, allActivities) {
+    var nodes = [];
+    var links = [];
+    var activityMap = {};
+    cytoscapeElements.forEach(function(el) {
+        if (el.data && el.data.id && !el.data.source && !el.data.target) {
+            nodes.push({
+                key: el.data.id,
+                label: el.data.label.replace(/\\n/g, '\n'),
+                isCritical: el.classes === 'critical'
+            });
+            // Map activity data by id
+            var act = allActivities.find(a => a.id === el.data.id);
+            if (act) activityMap[el.data.id] = act;
+        } else if (el.data && el.data.source && el.data.target) {
+            links.push({
+                from: el.data.source,
+                to: el.data.target,
+                isCritical: el.classes === 'critical'
+            });
+        }
+    });
+    return { nodes: nodes, links: links, activityMap: activityMap };
+}
+function showActivityDetails(activity) {
+    var detailsDiv = document.getElementById('activity-details');
+    if (!detailsDiv) return;
+    var html = `<div class="card shadow" style="max-width:900px;margin:auto;">
+        <div class="card-header bg-primary text-white"><h5 class="mb-0">Activity Details: ${activity.id} - ${activity.name}</h5></div>
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Duration:</b> ${activity.duration} days</div>
+                <div class="col-md-6"><b>Status:</b> ${activity.status || '-'}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Planned Start:</b> ${activity.planned_start_date || '-'}</div>
+                <div class="col-md-6"><b>Planned End:</b> ${activity.planned_end_date || '-'}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Actual Start:</b> ${activity.actual_start_date || '-'}</div>
+                <div class="col-md-6"><b>Actual End:</b> ${activity.actual_end_date || '-'}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Planned Manpower:</b> ${activity.planned_manpower}</div>
+                <div class="col-md-6"><b>Skilled/Semi/Unskilled:</b> ${activity.skilled_manpower} / ${activity.semi_skilled_manpower} / ${activity.unskilled_manpower}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Dependencies:</b> ${(activity.dependency_ids && activity.dependency_ids.length) ? activity.dependency_ids.join(', ') : '-'}</div>
+                <div class="col-md-6"><b>Total Float:</b> ${activity.total_float || 0}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Planned Cost:</b> ₹${activity.planned_cost || 0}</div>
+                <div class="col-md-6"><b>Actual Cost:</b> ₹${activity.actual_cost || 0}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Delay Cost:</b> ₹${activity.delay_cost || 0}</div>
+                <div class="col-md-6"><b>Delay Cost/Day:</b> ₹${activity.total_delay_cost_per_day || 0}</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-6"><b>Free Float:</b> ${activity.free_float || 0}</div>
+                <div class="col-md-6"><b>Delay Days:</b> ${activity.delay_days || 0}</div>
+            </div>
+        </div>
+    </div>`;
+    detailsDiv.innerHTML = html;
+    detailsDiv.style.display = 'block';
+}
+function hideActivityDetails() {
+    var detailsDiv = document.getElementById('activity-details');
+    if (detailsDiv) {
+        detailsDiv.innerHTML = '';
+        detailsDiv.style.display = 'none';
+    }
+}
+function showGojsIfActive() {
+    var flowchartSection = document.getElementById('cpm-flowchart');
+    if (flowchartSection && flowchartSection.classList.contains('active')) {
+        var cytoscapeElements = {{ cpm_cytoscape_elements|tojson|safe }};
+        var allActivities = {{ all_activities|tojson|safe }};
+        var gojsData = getGojsDataFromCytoscape(cytoscapeElements, allActivities);
+        renderGojsCPM(gojsData.nodes, gojsData.links, gojsData.activityMap);
+        hideActivityDetails();
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    showGojsIfActive();
+    document.querySelectorAll('.sub-nav-item').forEach(function(link) {
+        link.addEventListener('click', function() {
+            setTimeout(showGojsIfActive, 100);
+        });
+    });
+});
+</script>
+
+<script>
+// Function to confirm activity completions
+function confirmCompletions() {
+    // Get all checked checkboxes
+    var checkedBoxes = document.querySelectorAll('input[name^="complete_"]:checked');
+    var uncheckedBoxes = document.querySelectorAll('input[name^="complete_"]:not(:checked)');
+    
+    if (checkedBoxes.length === 0 && uncheckedBoxes.length === 0) {
+        alert('No activities found to update.');
+        return;
+    }
+    
+    // Create a form to submit the data
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = window.location.href;
+    
+    // Add current day
+    var currentDayInput = document.createElement('input');
+    currentDayInput.type = 'hidden';
+    currentDayInput.name = 'current_day';
+    currentDayInput.value = {{ current_day }};
+    form.appendChild(currentDayInput);
+    
+    // Add checked activities
+    checkedBoxes.forEach(function(checkbox) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = checkbox.name;
+        input.value = 'on';
+        form.appendChild(input);
+    });
+    
+    // Add unchecked activities (to unmark them)
+    uncheckedBoxes.forEach(function(checkbox) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'uncomplete_' + checkbox.name.replace('complete_', '');
+        input.value = 'on';
+        form.appendChild(input);
+    });
+    
+    // Show confirmation dialog
+    var message = 'Are you sure you want to update the completion status of ' + checkedBoxes.length + ' activities?';
+    if (uncheckedBoxes.length > 0) {
+        message += '\n\nNote: ' + uncheckedBoxes.length + ' activities will be marked as incomplete.';
+    }
+    
+    if (confirm(message)) {
+        // Submit the form
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Add visual feedback when checkboxes are changed
+document.addEventListener('DOMContentLoaded', function() {
+    var checkboxes = document.querySelectorAll('input[name^="complete_"]');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            var row = this.closest('tr');
+            if (this.checked) {
+                row.style.backgroundColor = '#d4edda';
+                row.style.borderColor = '#c3e6cb';
+            } else {
+                row.style.backgroundColor = '';
+                row.style.borderColor = '';
+            }
+        });
+    });
+});
 </script>
 </body>
 </html>
